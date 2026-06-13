@@ -18,7 +18,7 @@ Early MVP.
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to fall back to fuzzy buffers (Snacks/Telescope/fzf-lua)
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `<CR>` open current
-- `g?` opens an in-picker help popup with all actions
+- `?` opens an in-picker help popup with all actions
 - Pin toggle and pinned-only picker
 - Next/previous pinned buffer cycling
 

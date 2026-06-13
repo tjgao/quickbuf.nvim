@@ -2,7 +2,7 @@ local state = require("quickbuf.state")
 
 local M = {}
 
-local function buffer_flags(bufnr, is_alternate)
+function M.buffer_flags(bufnr, is_alternate)
     local flags = {}
     if is_alternate then
         flags[#flags + 1] = "#"
@@ -70,7 +70,7 @@ function M.candidates(opts)
                 path = path,
                 pinned = state.is_pinned(bufnr),
                 alternate = is_alternate,
-                flags = buffer_flags(bufnr, is_alternate),
+                flags = M.buffer_flags(bufnr, is_alternate),
                 mru_index = mru_index[bufnr] or math.huge,
             }
         end

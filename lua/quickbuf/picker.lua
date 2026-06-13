@@ -26,6 +26,8 @@ local RELOAD_ALL_KEY = "R"
 local FIRST_ITEM_KEY = "gg"
 local LAST_ITEM_KEY = "G"
 
+local effective_charset
+
 local function str_width(s)
     return vim.fn.strdisplaywidth(s)
 end
@@ -65,7 +67,100 @@ local function normalize_dimension(value, total, fallback)
     return fallback
 end
 
-local function fuzzy_picker_size()
+local function max_visible_items(total_items, label_limit)
+    if total_items <= 0 or label_limit <= 0 then
+        return 0
+    end
+
+    local max_rows = math.max(1, vim.o.lines - 4)
+    local vertical_padding =
+        math.max(0, math.floor((config.values.window and config.values.window.vertical_padding) or 0))
+    local cap = math.min(total_items, label_limit)
+
+    for shown = cap, 1, -1 do
+        local hidden_count = total_items - shown
+        local line_count = shown + (vertical_padding * 2) + (hidden_count > 0 and 1 or 0)
+        if line_count <= max_rows then
+            return shown
+        end
+    end
+
+    return 1
+end
+
+local function fuzzy_height_fallback()
+    local items = rank.candidates({ include_special = config.values.include_special })
+    local charset = effective_charset()
+    local shown_count = max_visible_items(#items, #charset)
+    local hidden_count = math.max(0, #items - shown_count)
+    local vertical_padding =
+        math.max(0, math.floor((config.values.window and config.values.window.vertical_padding) or 0))
+
+    local content_height = shown_count + (vertical_padding * 2)
+    if hidden_count > 0 then
+        content_height = content_height + 1
+    end
+
+    return math.max(1, content_height)
+end
+
+local function float_window_set()
+    local out = {}
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_is_valid(win) then
+            local cfg = vim.api.nvim_win_get_config(win)
+            if cfg.relative and cfg.relative ~= "" then
+                out[win] = true
+            end
+        end
+    end
+    return out
+end
+
+local function enforce_new_float_size(before_set, width, height)
+    local function apply_once()
+        local target = nil
+        local target_area = -1
+
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+            if not before_set[win] and vim.api.nvim_win_is_valid(win) then
+                local cfg = vim.api.nvim_win_get_config(win)
+                if
+                    cfg.relative
+                    and cfg.relative ~= ""
+                    and type(cfg.width) == "number"
+                    and type(cfg.height) == "number"
+                then
+                    local area = cfg.width * cfg.height
+                    if area > target_area then
+                        target = win
+                        target_area = area
+                    end
+                end
+            end
+        end
+
+        if not target then
+            return false
+        end
+
+        local cfg = vim.api.nvim_win_get_config(target)
+        cfg.width = width
+        cfg.height = height
+        pcall(vim.api.nvim_win_set_config, target, cfg)
+        return true
+    end
+
+    if apply_once() then
+        return
+    end
+
+    vim.defer_fn(apply_once, 20)
+    vim.defer_fn(apply_once, 80)
+end
+
+local function fuzzy_picker_size(opts)
+    opts = opts or {}
     local cfg = config.values.window or {}
     local columns = math.max(1, vim.o.columns)
     local lines = math.max(1, vim.o.lines - 2)
@@ -79,10 +174,19 @@ local function fuzzy_picker_size()
     end
 
     local width_cols = normalize_dimension(cfg.width, columns, max_width)
-    width_cols = math.max(min_width, math.min(max_width, width_cols))
+    if type(opts.width_cols) == "number" and opts.width_cols > 0 then
+        width_cols = math.floor(opts.width_cols)
+    else
+        width_cols = math.max(min_width, math.min(max_width, width_cols))
+    end
+    width_cols = math.max(1, math.min(columns, width_cols))
 
-    local height_rows = normalize_dimension(cfg.height, lines, math.floor(lines * 0.55))
-    height_rows = math.max(8, math.min(lines, height_rows))
+    local fallback_height = fuzzy_height_fallback()
+    local height_rows = normalize_dimension(cfg.height, lines, fallback_height)
+    if type(opts.height_rows) == "number" and opts.height_rows > 0 then
+        height_rows = math.floor(opts.height_rows)
+    end
+    height_rows = math.max(1, math.min(math.max(1, vim.o.lines - 4), height_rows))
 
     local width_frac = math.max(0.2, math.min(1.0, width_cols / columns))
     local height_frac = math.max(0.2, math.min(1.0, height_rows / lines))
@@ -95,11 +199,12 @@ local function fuzzy_picker_size()
     }
 end
 
-local function open_fuzzy_buffers()
-    local size = fuzzy_picker_size()
+local function open_fuzzy_buffers(opts)
+    local size = fuzzy_picker_size(opts)
 
     local ok_snacks, snacks = pcall(require, "snacks")
     if ok_snacks and snacks and snacks.picker and type(snacks.picker.buffers) == "function" then
+        local before_float_wins = float_window_set()
         local ok = pcall(snacks.picker.buffers, {
             preview = false,
             layout = {
@@ -107,6 +212,14 @@ local function open_fuzzy_buffers()
                 preview = false,
                 width = size.width_frac,
                 height = size.height_frac,
+                min_width = size.width_cols,
+                max_width = size.width_cols,
+                min_height = size.height_rows,
+                max_height = size.height_rows,
+                layout = {
+                    width = size.width_cols,
+                    height = size.height_rows,
+                },
             },
         })
         if not ok then
@@ -115,9 +228,15 @@ local function open_fuzzy_buffers()
                 layout = {
                     preset = "default",
                     preview = false,
+                    width = size.width_frac,
+                    height = size.height_frac,
+                    min_width = size.width_cols,
+                    max_width = size.width_cols,
+                    min_height = size.height_rows,
+                    max_height = size.height_rows,
                     layout = {
-                        width = size.width_frac,
-                        height = size.height_frac,
+                        width = size.width_cols,
+                        height = size.height_rows,
                     },
                 },
             })
@@ -125,6 +244,7 @@ local function open_fuzzy_buffers()
                 snacks.picker.buffers()
             end
         end
+        enforce_new_float_size(before_float_wins, size.width_cols, size.height_rows)
         return
     end
 
@@ -239,7 +359,7 @@ local function open_help_popup(lines)
     vim.wo[M.help_win].signcolumn = "no"
     vim.wo[M.help_win].wrap = false
     vim.wo[M.help_win].winhighlight =
-        "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename"
+    "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename"
 
     vim.keymap.set("n", "q", function()
         if M.help_win and vim.api.nvim_win_is_valid(M.help_win) then
@@ -346,7 +466,7 @@ local function is_single_key(key)
     return type(key) == "string" and #key == 1
 end
 
-local function effective_charset()
+effective_charset = function()
     local reserved = {
         q = true,
         g = true,
@@ -430,7 +550,7 @@ local function open_window(lines, all_highlights, meta)
     vim.bo[M.buf].filetype = "quickbuf"
     render_lines(lines, all_highlights)
 
-    local footer = meta and meta.footer or " g? [help]  q [quit] "
+    local footer = meta and meta.footer or " ? [help]  q [quit] "
 
     M.win = vim.api.nvim_open_win(M.buf, true, {
         relative = "editor",
@@ -451,7 +571,7 @@ local function open_window(lines, all_highlights, meta)
     vim.wo[M.win].relativenumber = false
     vim.wo[M.win].cursorline = true
     vim.wo[M.win].winhighlight =
-        "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:QuickBufFilename,CursorLine:QuickBufCursorLine"
+    "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:QuickBufFilename,CursorLine:QuickBufCursorLine"
     vim.wo[M.win].signcolumn = "no"
     vim.wo[M.win].wrap = false
     vim.api.nvim_win_set_cursor(M.win, { 1, 0 })
@@ -628,7 +748,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             "[Other]",
             string.format("- %s fuzzy fallback", fuzzy),
             "- q or <Esc> close",
-            "- g? this help",
+            "- ? this help",
         }
     end
 
@@ -655,6 +775,26 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return nil
         end
         return row
+    end
+
+    local function refresh_visible_flags()
+        local alternate = (ctx and ctx.alternate_bufnr) or vim.fn.bufnr("#")
+        local cursor_row = get_selected_index() or 1
+
+        for _, item in ipairs(items) do
+            if vim.api.nvim_buf_is_valid(item.bufnr) then
+                item.flags = rank.buffer_flags(item.bufnr, item.bufnr == alternate)
+            end
+        end
+
+        local lines, all_highlights, line_offset = build_lines(items, labels_for_items, ctx.hidden_count or 0)
+        ctx.line_offset = line_offset
+        render_lines(lines, all_highlights)
+
+        if M.win and vim.api.nvim_win_is_valid(M.win) and #items > 0 then
+            cursor_row = math.max(1, math.min(cursor_row, #items))
+            vim.api.nvim_win_set_cursor(M.win, { line_offset + cursor_row, 0 })
+        end
     end
 
     local function move_cursor(delta)
@@ -804,6 +944,9 @@ local function apply_keymaps(items, labels_for_items, ctx)
         if failed > 0 then
             vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
         end
+        if written > 0 then
+            refresh_visible_flags()
+        end
     end
 
     local function write_all_listed_buffers()
@@ -824,6 +967,9 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local written, failed = write_buffers(targets)
         if failed > 0 then
             vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
+        end
+        if written > 0 then
+            refresh_visible_flags()
         end
     end
 
@@ -879,7 +1025,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return
         end
 
-        local swallow = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`-=[]\\;',./"
+        local swallow = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`-=[]\\;',./"
         for i = 1, #swallow do
             local key = swallow:sub(i, i)
             vim.keymap.set("n", key, "<Nop>", { buffer = M.buf, silent = true })
@@ -895,7 +1041,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
     vim.keymap.set("n", FIRST_ITEM_KEY, function()
         vim.api.nvim_win_set_cursor(M.win, { (ctx.line_offset or 0) + 1, 0 })
     end, { buffer = M.buf, nowait = true, silent = true })
-    vim.keymap.set("n", "g?", function()
+    vim.keymap.set("n", "?", function()
         open_help_popup(help_lines())
     end, { buffer = M.buf, nowait = true, silent = true })
     vim.keymap.set("n", LAST_ITEM_KEY, function()
@@ -937,8 +1083,18 @@ local function apply_keymaps(items, labels_for_items, ctx)
 
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         vim.keymap.set("n", config.values.fuzzy_key, function()
+            local size_hint = {}
+            if M.win and vim.api.nvim_win_is_valid(M.win) then
+                local win_cfg = vim.api.nvim_win_get_config(M.win)
+                if type(win_cfg.width) == "number" and win_cfg.width > 0 then
+                    size_hint.width_cols = win_cfg.width
+                end
+                if type(win_cfg.height) == "number" and win_cfg.height > 0 then
+                    size_hint.height_rows = win_cfg.height
+                end
+            end
             close()
-            open_fuzzy_buffers()
+            open_fuzzy_buffers(size_hint)
         end, { buffer = M.buf, nowait = true, silent = true })
     end
 
@@ -1020,7 +1176,7 @@ function M.open(opts)
     end
 
     local charset = effective_charset()
-    local limit = #charset
+    local limit = max_visible_items(#items, #charset)
     local shown = {}
     for i = 1, math.min(#items, limit) do
         shown[#shown + 1] = items[i]
@@ -1057,7 +1213,7 @@ function M.open(opts)
     local lines, all_highlights, line_offset = build_lines(shown, labels_for_items, hidden_count)
 
     local footer_parts = {
-        "g? [help]",
+        "? [help]",
         "q [quit]",
     }
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
