@@ -306,15 +306,15 @@ local function open_help_popup(lines)
     local horizontal_padding = 2
     local vertical_padding = 1
 
-    local max_line = 0
+    local max_line_width = 0
     for _, line in ipairs(lines) do
         local width = str_width(line)
-        if width > max_line then
-            max_line = width
+        if width > max_line_width then
+            max_line_width = width
         end
     end
 
-    local width = math.min(math.max(max_line + horizontal_padding * 2, 52), math.max(1, vim.o.columns - 8))
+    local width = math.min(math.max(max_line_width + horizontal_padding * 2, 52), math.max(1, vim.o.columns - 8))
     local height = math.min(#lines + vertical_padding * 2, math.max(1, vim.o.lines - 8))
 
     local padded_lines = {}
@@ -1156,7 +1156,12 @@ local function apply_keymaps(items, labels_for_items, ctx)
         end, { buffer = M.buf, nowait = true, silent = true })
     end
     if picker_keys.toggle_view_key and picker_keys.toggle_view_key ~= "" then
-        vim.keymap.set("n", picker_keys.toggle_view_key, toggle_picker_view, { buffer = M.buf, nowait = true, silent = true })
+        vim.keymap.set(
+            "n",
+            picker_keys.toggle_view_key,
+            toggle_picker_view,
+            { buffer = M.buf, nowait = true, silent = true }
+        )
     end
 
     for i, item in ipairs(items) do
