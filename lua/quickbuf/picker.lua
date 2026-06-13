@@ -12,6 +12,16 @@ local M = {
     buf = nil,
 }
 
+local VISUAL_SELECT_KEY = "V"
+local DELETE_KEY = "d"
+local FORCE_DELETE_KEY = "D"
+local CLEAR_UNPINNED_KEY = "c"
+local FORCE_CLEAR_UNPINNED_KEY = "C"
+local WRITE_KEY = "w"
+local WRITE_ALL_KEY = "W"
+local FIRST_ITEM_KEY = "gg"
+local LAST_ITEM_KEY = "G"
+
 local function str_width(s)
     return vim.fn.strdisplaywidth(s)
 end
@@ -88,11 +98,8 @@ local function format_line(item, label)
         byte_col = byte_col + #text
     end
 
-    if item.pinned then
-        add(" P", "QuickBufPinned")
-    else
-        add("  ")
-    end
+    local pin_mark = item.pinned and " P" or "  "
+    add(pin_mark, item.pinned and "QuickBufPinned" or "QuickBufMuted")
 
     add(" ")
 
@@ -155,6 +162,55 @@ local function resolve_size(value, total, fallback)
         return math.floor(value)
     end
     return fallback
+end
+
+local function is_single_key(key)
+    return type(key) == "string" and #key == 1
+end
+
+local function effective_charset()
+    local reserved = {
+        q = true,
+        g = true,
+        G = true,
+        [VISUAL_SELECT_KEY] = true,
+        [DELETE_KEY] = true,
+        [FORCE_DELETE_KEY] = true,
+        [CLEAR_UNPINNED_KEY] = true,
+        [FORCE_CLEAR_UNPINNED_KEY] = true,
+        [WRITE_KEY] = true,
+        [WRITE_ALL_KEY] = true,
+    }
+
+    if is_single_key(config.values.fuzzy_key) then
+        reserved[config.values.fuzzy_key] = true
+    end
+    if is_single_key(config.values.alternate_key) then
+        reserved[config.values.alternate_key] = true
+    end
+
+    local picker_keys = config.values.picker or {}
+    if is_single_key(picker_keys.move_up_key) then
+        reserved[picker_keys.move_up_key] = true
+    end
+    if is_single_key(picker_keys.move_down_key) then
+        reserved[picker_keys.move_down_key] = true
+    end
+    if is_single_key(picker_keys.select_key) then
+        reserved[picker_keys.select_key] = true
+    end
+    if is_single_key(picker_keys.toggle_pin_key) then
+        reserved[picker_keys.toggle_pin_key] = true
+    end
+
+    local out = {}
+    for _, ch in ipairs(labels.default_charset()) do
+        if not reserved[ch] then
+            out[#out + 1] = ch
+        end
+    end
+
+    return out
 end
 
 local function open_window(lines, all_highlights)
@@ -236,7 +292,84 @@ local function build_lines(items, labels_for_items, hidden_count)
     return lines, all_highlights
 end
 
+local function delete_buffers(bufnrs, force)
+    local deleted = 0
+    local failed = {}
+
+    local function buffer_display_name(bufnr)
+        local name = vim.api.nvim_buf_get_name(bufnr)
+        if name == "" then
+            return string.format("[No Name] (#%d)", bufnr)
+        end
+        return vim.fn.fnamemodify(name, ":~:.")
+    end
+
+    for _, bufnr in ipairs(bufnrs) do
+        if vim.api.nvim_buf_is_valid(bufnr) then
+            local ok, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = force == true })
+            if ok then
+                state.unpin(bufnr)
+                deleted = deleted + 1
+            else
+                failed[#failed + 1] = {
+                    name = buffer_display_name(bufnr),
+                    error = tostring(err),
+                }
+            end
+        end
+    end
+
+    return deleted, failed
+end
+
+local function notify_delete_failures(prefix, deleted, failed)
+    if #failed == 0 then
+        return
+    end
+
+    local max_items = 5
+    local names = {}
+    for i = 1, math.min(#failed, max_items) do
+        names[#names + 1] = failed[i].name
+    end
+
+    local extra = #failed - #names
+    local suffix = extra > 0 and string.format(" (and %d more)", extra) or ""
+    local list = table.concat(names, ", ")
+    vim.notify(
+        string.format("quickbuf: %s %d, failed %d: %s%s", prefix, deleted, #failed, list, suffix),
+        vim.log.levels.WARN
+    )
+end
+
+local function write_buffers(bufnrs)
+    local written = 0
+    local failed = 0
+
+    for _, bufnr in ipairs(bufnrs) do
+        if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == "" and vim.bo[bufnr].modified then
+            local ok = pcall(vim.api.nvim_buf_call, bufnr, function()
+                vim.cmd("silent write")
+            end)
+            if ok then
+                written = written + 1
+            else
+                failed = failed + 1
+            end
+        end
+    end
+
+    return written, failed
+end
+
 local function apply_keymaps(items, labels_for_items, ctx)
+    local function refresh_after_action(cursor_row)
+        local next_opts = vim.tbl_extend("force", {}, ctx.open_opts or {})
+        next_opts.cursor_row = cursor_row
+        close()
+        M.open(next_opts)
+    end
+
     local function pick(bufnr)
         close()
         if vim.api.nvim_buf_is_valid(bufnr) then
@@ -281,13 +414,195 @@ local function apply_keymaps(items, labels_for_items, ctx)
         end
         local item = items[idx]
         item.pinned = state.toggle_pin(item.bufnr)
-        local lines, all_highlights = build_lines(items, labels_for_items, ctx.hidden_count)
-        render_lines(lines, all_highlights)
-        vim.api.nvim_win_set_cursor(M.win, { idx, 0 })
+        refresh_after_action(idx)
     end
+
+    local function visual_targets()
+        local mode = vim.fn.mode()
+        local start_row
+        local end_row
+
+        if mode == "v" or mode == "V" or mode == "\22" then
+            start_row = vim.fn.line("v")
+            end_row = vim.fn.line(".")
+        else
+            start_row = vim.fn.getpos("'<")[2]
+            end_row = vim.fn.getpos("'>")[2]
+        end
+
+        if start_row <= 0 or end_row <= 0 then
+            return {}
+        end
+        if start_row > end_row then
+            start_row, end_row = end_row, start_row
+        end
+
+        start_row = math.max(1, math.min(start_row, #items))
+        end_row = math.max(1, math.min(end_row, #items))
+
+        local out = {}
+        local seen = {}
+        for row = start_row, end_row do
+            local bufnr = items[row].bufnr
+            if not seen[bufnr] then
+                out[#out + 1] = bufnr
+                seen[bufnr] = true
+            end
+        end
+
+        return out
+    end
+
+    local function toggle_selected_or_current_pin(prefer_visual)
+        local targets = prefer_visual and visual_targets() or {}
+        if #targets == 0 then
+            local idx = get_selected_index()
+            if idx then
+                targets[1] = items[idx].bufnr
+            end
+        end
+        if #targets == 0 then
+            return
+        end
+
+        for _, bufnr in ipairs(targets) do
+            state.toggle_pin(bufnr)
+        end
+
+        local idx = get_selected_index() or 1
+        refresh_after_action(idx)
+    end
+
+    local function delete_selected_or_current(prefer_visual, force)
+        local preferred_row = get_selected_index() or 1
+        local targets = prefer_visual and visual_targets() or {}
+        if prefer_visual and #targets > 0 then
+            local a = vim.fn.line("v")
+            local b = vim.fn.line(".")
+            if a > 0 and b > 0 then
+                preferred_row = math.min(a, b)
+            end
+        end
+
+        if #targets == 0 then
+            local idx = get_selected_index()
+            if idx then
+                targets[1] = items[idx].bufnr
+                preferred_row = idx
+            end
+        end
+        if #targets == 0 then
+            return
+        end
+
+        local deleted, failed = delete_buffers(targets, force)
+        refresh_after_action(preferred_row)
+        notify_delete_failures("deleted", deleted, failed)
+    end
+
+    local function clear_unpinned_buffers(force)
+        local targets = {}
+        for _, item in ipairs(ctx.all_items or {}) do
+            if not item.pinned then
+                targets[#targets + 1] = item.bufnr
+            end
+        end
+
+        if #targets == 0 then
+            vim.notify("quickbuf: no unpinned buffers to clear", vim.log.levels.INFO)
+            return
+        end
+
+        local deleted, failed = delete_buffers(targets, force)
+        local idx = get_selected_index() or 1
+        refresh_after_action(idx)
+        notify_delete_failures("cleared", deleted, failed)
+    end
+
+    local function write_selected_or_current(prefer_visual)
+        local targets = prefer_visual and visual_targets() or {}
+        if #targets == 0 then
+            local idx = get_selected_index()
+            if idx then
+                targets[1] = items[idx].bufnr
+            end
+        end
+        if #targets == 0 then
+            return
+        end
+
+        local written, failed = write_buffers(targets)
+        if failed > 0 then
+            vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
+        end
+    end
+
+    local function write_all_listed_buffers()
+        local targets = {}
+        local seen = {}
+        for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buflisted and vim.bo[bufnr].buftype == "" and not seen[bufnr] then
+                targets[#targets + 1] = bufnr
+                seen[bufnr] = true
+            end
+        end
+
+        local written, failed = write_buffers(targets)
+        if failed > 0 then
+            vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
+        end
+    end
+
+    local function swallow_all_normal_keys()
+        if not config.values.isolate_keymaps then
+            return
+        end
+
+        local swallow = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`-=[]\\;',./"
+        for i = 1, #swallow do
+            local key = swallow:sub(i, i)
+            vim.keymap.set("n", key, "<Nop>", { buffer = M.buf, silent = true })
+        end
+    end
+
+    swallow_all_normal_keys()
+
+    local picker_keys = config.values.picker or {}
 
     vim.keymap.set("n", "<Esc>", close, { buffer = M.buf, nowait = true, silent = true })
     vim.keymap.set("n", "q", close, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", FIRST_ITEM_KEY, function()
+        vim.api.nvim_win_set_cursor(M.win, { 1, 0 })
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", LAST_ITEM_KEY, function()
+        vim.api.nvim_win_set_cursor(M.win, { #items, 0 })
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", VISUAL_SELECT_KEY, "V", { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", DELETE_KEY .. DELETE_KEY, function()
+        delete_selected_or_current(false, false)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("x", DELETE_KEY, function()
+        delete_selected_or_current(true, false)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", FORCE_DELETE_KEY, function()
+        delete_selected_or_current(false, true)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("x", FORCE_DELETE_KEY, function()
+        delete_selected_or_current(true, true)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", CLEAR_UNPINNED_KEY, function()
+        clear_unpinned_buffers(false)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", FORCE_CLEAR_UNPINNED_KEY, function()
+        clear_unpinned_buffers(true)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", WRITE_KEY, function()
+        write_selected_or_current(false)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("x", WRITE_KEY, function()
+        write_selected_or_current(true)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", WRITE_ALL_KEY, write_all_listed_buffers, { buffer = M.buf, nowait = true, silent = true })
 
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         vim.keymap.set("n", config.values.fuzzy_key, function()
@@ -312,7 +627,6 @@ local function apply_keymaps(items, labels_for_items, ctx)
         end, { buffer = M.buf, nowait = true, silent = true })
     end
 
-    local picker_keys = config.values.picker or {}
     if picker_keys.move_up_key and picker_keys.move_up_key ~= "" then
         vim.keymap.set("n", picker_keys.move_up_key, function()
             move_cursor(-1)
@@ -333,6 +647,9 @@ local function apply_keymaps(items, labels_for_items, ctx)
             toggle_current_pin,
             { buffer = M.buf, nowait = true, silent = true }
         )
+        vim.keymap.set("x", picker_keys.toggle_pin_key, function()
+            toggle_selected_or_current_pin(true)
+        end, { buffer = M.buf, nowait = true, silent = true })
     end
 
     for i, item in ipairs(items) do
@@ -371,7 +688,7 @@ function M.open(opts)
         return
     end
 
-    local charset = labels.default_charset()
+    local charset = effective_charset()
     local limit = #charset
     local shown = {}
     for i = 1, math.min(#items, limit) do
@@ -413,7 +730,16 @@ function M.open(opts)
         source_bufnr = source_bufnr,
         alternate_bufnr = alternate_bufnr,
         hidden_count = hidden_count,
+        charset = charset,
+        all_items = items,
+        open_opts = opts,
     })
+
+    if M.win and vim.api.nvim_win_is_valid(M.win) then
+        local target_row = opts.cursor_row or 1
+        target_row = math.max(1, math.min(target_row, #shown))
+        vim.api.nvim_win_set_cursor(M.win, { target_row, 0 })
+    end
 end
 
 return M

@@ -3,13 +3,14 @@ local M = {}
 M.defaults = {
     include_special = false,
     auto_jump_single = true,
+    isolate_keymaps = true,
     fuzzy_key = "/",
     alternate_key = "<Tab>",
     alternate_key_display = "",
     alternate_without_label = true,
     picker = {
-        move_up_key = "K",
-        move_down_key = "J",
+        move_up_key = "k",
+        move_down_key = "j",
         select_key = "<CR>",
         toggle_pin_key = "T",
     },

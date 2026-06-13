@@ -59,7 +59,7 @@ function M.pin_toggle(bufnr)
 end
 
 local function cycle_pinned(step)
-    local pinned = state.pinned_in_mru_order()
+    local pinned = state.pinned_in_order()
     if #pinned == 0 then
         vim.notify("quickbuf: no pinned buffers", vim.log.levels.INFO)
         return
@@ -133,7 +133,7 @@ function M.setup(opts)
         vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
             group = augroup,
             callback = function(args)
-                state.pinned[args.buf] = nil
+                state.unpin(args.buf)
             end,
         })
         did_setup = true

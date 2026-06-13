@@ -49,11 +49,11 @@ function M.candidates(opts)
     end
 
     table.sort(out, function(a, b)
-        if a.pinned ~= b.pinned then
-            return a.pinned
-        end
         if a.alternate ~= b.alternate then
             return a.alternate
+        end
+        if a.pinned ~= b.pinned then
+            return a.pinned
         end
         if a.mru_index ~= b.mru_index then
             return a.mru_index < b.mru_index

@@ -1,6 +1,6 @@
 local M = {}
 
-M.default_string = "fjdkghslaurieowpqtnmvycxzb"
+M.default_string = "fjdkhgl;asrueiwotynmq,c.vxbzpFJDKHGLASRUEIWOTYNMQCVXBZP"
 
 function M.charset_from_string(s)
     local out = {}

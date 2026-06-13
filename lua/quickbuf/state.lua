@@ -1,5 +1,6 @@
 local M = {
     pinned = {},
+    pinned_order = {},
     mru = {},
 }
 
@@ -12,8 +13,21 @@ local function remove_from_mru(bufnr)
     end
 end
 
+local function remove_from_order(bufnr)
+    for i, id in ipairs(M.pinned_order) do
+        if id == bufnr then
+            table.remove(M.pinned_order, i)
+            return
+        end
+    end
+end
+
 local function is_valid_buffer(bufnr)
     return vim.api.nvim_buf_is_valid(bufnr)
+end
+
+local function is_listed_buffer(bufnr)
+    return is_valid_buffer(bufnr) and vim.bo[bufnr].buflisted
 end
 
 function M.track_buf_enter(bufnr)
@@ -36,10 +50,25 @@ function M.cleanup()
     M.mru = next_mru
 
     for bufnr, _ in pairs(M.pinned) do
-        if not is_valid_buffer(bufnr) then
+        if not is_listed_buffer(bufnr) then
             M.pinned[bufnr] = nil
         end
     end
+
+    local next_order = {}
+    local seen = {}
+    for _, bufnr in ipairs(M.pinned_order) do
+        if M.pinned[bufnr] and is_listed_buffer(bufnr) and not seen[bufnr] then
+            next_order[#next_order + 1] = bufnr
+            seen[bufnr] = true
+        end
+    end
+    for bufnr, _ in pairs(M.pinned) do
+        if is_listed_buffer(bufnr) and not seen[bufnr] then
+            next_order[#next_order + 1] = bufnr
+        end
+    end
+    M.pinned_order = next_order
 end
 
 function M.is_pinned(bufnr)
@@ -52,33 +81,23 @@ function M.toggle_pin(bufnr)
     end
 
     if M.pinned[bufnr] then
-        M.pinned[bufnr] = nil
+        M.unpin(bufnr)
         return false
     end
 
     M.pinned[bufnr] = true
+    M.pinned_order[#M.pinned_order + 1] = bufnr
     return true
 end
 
-function M.pinned_in_mru_order()
+function M.unpin(bufnr)
+    M.pinned[bufnr] = nil
+    remove_from_order(bufnr)
+end
+
+function M.pinned_in_order()
     M.cleanup()
-    local out = {}
-    local seen = {}
-
-    for _, bufnr in ipairs(M.mru) do
-        if M.pinned[bufnr] and not seen[bufnr] then
-            table.insert(out, bufnr)
-            seen[bufnr] = true
-        end
-    end
-
-    for bufnr, _ in pairs(M.pinned) do
-        if not seen[bufnr] and is_valid_buffer(bufnr) then
-            table.insert(out, bufnr)
-        end
-    end
-
-    return out
+    return vim.deepcopy(M.pinned_order)
 end
 
 function M.mru_index_map()

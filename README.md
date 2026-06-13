@@ -16,7 +16,7 @@ Early MVP.
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to fall back to fuzzy buffers (Snacks/Telescope/fzf-lua)
-- Picker navigation keys: `K` up, `J` down, `<CR>` select line, `T` toggle pin
+- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `<CR>` open current
 - Pin toggle and pinned-only picker
 - Next/previous pinned buffer cycling
 
@@ -58,12 +58,14 @@ Defaults:
 require("quickbuf").setup({
   include_special = false,
   auto_jump_single = true,
+  isolate_keymaps = true,
   fuzzy_key = "/",
   alternate_key = "<Tab>",
+  alternate_key_display = "",
   alternate_without_label = true,
   picker = {
-    move_up_key = "K",
-    move_down_key = "J",
+    move_up_key = "k",
+    move_down_key = "j",
     select_key = "<CR>",
     toggle_pin_key = "T",
   },
@@ -92,9 +94,11 @@ require("quickbuf").setup({
 
 - Labels are always one-key and use an internal ergonomic charset.
 - Visible items are capped to that internal label count, with `+X more` overflow hint.
+- `isolate_keymaps = true` blocks unrelated normal-mode mappings inside picker.
+- `gg/G`, `V`, `dd/d/D`, `c/C`, and `w/W` are reserved from labels to avoid conflicts.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
-- Set `picker.* = false` to disable individual picker action keys.
+- `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
 - Override colors with `highlights = { ... }` in setup.
 - `window.width`, `window.height`, `window.min_width`, and `window.max_width` accept absolute numbers (`80`) or percentages (`0.6`).
 - Pin state is in-memory for now (session only).
