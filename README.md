@@ -28,9 +28,7 @@ With `lazy.nvim`:
 {
   "tiejun/quickbuf.nvim",
   config = function()
-    require("quickbuf").setup({
-      max_items = 20,
-    })
+    require("quickbuf").setup()
   end,
 }
 ```
@@ -58,8 +56,6 @@ Defaults:
 
 ```lua
 require("quickbuf").setup({
-  labels = "fjdkghslaurieowpqtnmvycxzb",
-  max_items = 20,
   include_special = false,
   auto_jump_single = true,
   fuzzy_key = "/",
@@ -94,8 +90,8 @@ require("quickbuf").setup({
 
 ## Notes
 
-- Label length is 1 character when the visible list fits in the label set.
-- If visible items exceed label capacity, labels switch to 2-character mode.
+- Labels are always one-key and use an internal ergonomic charset.
+- Visible items are capped to that internal label count, with `+X more` overflow hint.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
 - Set `picker.* = false` to disable individual picker action keys.

@@ -1,12 +1,11 @@
 local M = {}
 
 M.defaults = {
-    labels = "fjdkghslaurieowpqtnmvycxzb",
-    max_items = 20,
     include_special = false,
     auto_jump_single = true,
     fuzzy_key = "/",
     alternate_key = "<Tab>",
+    alternate_key_display = "",
     alternate_without_label = true,
     picker = {
         move_up_key = "K",

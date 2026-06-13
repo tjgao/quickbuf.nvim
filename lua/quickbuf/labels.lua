@@ -1,5 +1,7 @@
 local M = {}
 
+M.default_string = "fjdkghslaurieowpqtnmvycxzb"
+
 function M.charset_from_string(s)
     local out = {}
     local seen = {}
@@ -21,28 +23,19 @@ function M.generate(n, charset)
         error("quickbuf: labels charset is empty")
     end
 
-    local base = #charset
-
-    if n <= base then
-        local single = {}
-        for i = 1, n do
-            single[#single + 1] = charset[i]
-        end
-        return single
+    if n > #charset then
+        error("quickbuf: too many buffers for one-key labels")
     end
 
-    local labels = {}
-    for i = 1, base do
-        local first = charset[i]
-        for j = 1, base do
-            labels[#labels + 1] = first .. charset[j]
-            if #labels >= n then
-                return labels
-            end
-        end
+    local out = {}
+    for i = 1, n do
+        out[#out + 1] = charset[i]
     end
+    return out
+end
 
-    error("quickbuf: too many buffers for current labels charset")
+function M.default_charset()
+    return M.charset_from_string(M.default_string)
 end
 
 return M

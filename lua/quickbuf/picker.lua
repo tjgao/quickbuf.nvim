@@ -109,7 +109,11 @@ local function format_line(item, label)
     add(label_cell, label ~= "" and "QuickBufLabel" or "QuickBufMuted")
 
     if item.alternate then
-        add("#", "QuickBufAlternate")
+        local k = "#"
+        if type(config.values.alternate_key_display) == "string" and config.values.alternate_key_display ~= "" then
+            k = config.values.alternate_key_display
+        end
+        add(k, "QuickBufAlternate")
     end
 
     if item.dirname ~= "" then
@@ -123,11 +127,11 @@ end
 local function apply_highlights(all_highlights)
     vim.api.nvim_buf_clear_namespace(M.buf, ns, 0, -1)
     for line_idx, line_highlights in ipairs(all_highlights) do
-        for _, item in ipairs(line_highlights) do
-            vim.api.nvim_buf_set_extmark(M.buf, ns, line_idx - 1, item.start_col, {
+        for _, part in ipairs(line_highlights) do
+            vim.api.nvim_buf_set_extmark(M.buf, ns, line_idx - 1, part.start_col, {
                 end_row = line_idx - 1,
-                end_col = item.end_col,
-                hl_group = item.hl,
+                end_col = part.end_col,
+                hl_group = part.hl,
             })
         end
     end
@@ -367,13 +371,13 @@ function M.open(opts)
         return
     end
 
-    local limit = math.max(1, config.values.max_items)
+    local charset = labels.default_charset()
+    local limit = #charset
     local shown = {}
     for i = 1, math.min(#items, limit) do
         shown[#shown + 1] = items[i]
     end
 
-    local charset = labels.charset_from_string(config.values.labels)
     local labels_needed = 0
     local labels_for_items = {}
     for i, item in ipairs(shown) do
