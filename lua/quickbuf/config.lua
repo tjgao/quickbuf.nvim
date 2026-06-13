@@ -32,6 +32,7 @@ M.defaults = {
         max_width = 80,
         min_width = 36,
         padding = 2,
+        vertical_padding = 1,
     },
 }
 

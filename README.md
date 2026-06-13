@@ -9,6 +9,7 @@ Early MVP.
 ## Features
 
 - Quick label picker for `buflisted` buffers (excludes current buffer)
+- Border title shows total selectable buffers (current buffer excluded)
 - Ranking: pinned first, then alternate buffer (`#`), then MRU
 - Render filename first, with label right next to filename and parent path dimmed
 - Vim-style flags are shown after pin mark (e.g. `#a+`, `h+`)
@@ -17,6 +18,7 @@ Early MVP.
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to fall back to fuzzy buffers (Snacks/Telescope/fzf-lua)
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `<CR>` open current
+- `g?` opens an in-picker help popup with all actions
 - Pin toggle and pinned-only picker
 - Next/previous pinned buffer cycling
 
@@ -87,6 +89,7 @@ require("quickbuf").setup({
     max_width = 80,
     min_width = 36,
     padding = 2,
+    vertical_padding = 1,
   },
 })
 ```
@@ -102,6 +105,7 @@ require("quickbuf").setup({
 - `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
 - Override colors with `highlights = { ... }` in setup.
 - `window.width`, `window.height`, `window.min_width`, and `window.max_width` accept absolute numbers (`80`) or percentages (`0.6`).
+- `window.vertical_padding` adds blank rows above and below buffer entries.
 - Pin state is in-memory for now (session only).
 
 Example highlight override:
