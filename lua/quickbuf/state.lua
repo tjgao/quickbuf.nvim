@@ -5,11 +5,18 @@ local M = {
     picker_mode = "all",
 }
 
-local function normalize_picker_mode(mode)
-    if mode == "pinned" then
-        return "pinned"
+local function debug_warn(msg)
+    vim.api.nvim_echo({ { "quickbuf: " .. msg, "WarningMsg" } }, true, {})
+end
+
+local function normalize_picker_mode(mode, fallback)
+    if mode == "all" or mode == "pinned" then
+        return mode
     end
-    return "all"
+
+    local next_mode = fallback or "all"
+    debug_warn(string.format("invalid picker mode '%s' (using '%s')", tostring(mode), next_mode))
+    return next_mode
 end
 
 local function remove_from_mru(bufnr)
@@ -117,12 +124,11 @@ function M.mru_index_map()
 end
 
 function M.get_picker_mode()
-    M.picker_mode = normalize_picker_mode(M.picker_mode)
-    return M.picker_mode
+    return normalize_picker_mode(M.picker_mode, "all")
 end
 
 function M.set_picker_mode(mode)
-    M.picker_mode = normalize_picker_mode(mode)
+    M.picker_mode = normalize_picker_mode(mode, "all")
     return M.picker_mode
 end
 
