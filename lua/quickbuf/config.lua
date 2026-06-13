@@ -1,43 +1,43 @@
 local M = {}
 
 M.defaults = {
-  labels = "fjdkghslaurieowpqtnmvycxzb",
-  max_items = 20,
-  include_special = false,
-  auto_jump_single = true,
-  fuzzy_key = "/",
-  alternate_key = "<Tab>",
-  alternate_without_label = true,
-  picker = {
-    move_up_key = "K",
-    move_down_key = "J",
-    select_key = "<CR>",
-    toggle_pin_key = "T",
-  },
-  show_icons = true,
-  highlights = {
-    label = { fg = "#ff8800", bold = true },
-    pinned = { link = "DiagnosticOk" },
-    alternate = { link = "DiagnosticWarn" },
-    filename = { link = "Normal" },
-    path = { link = "Comment" },
-    muted = { link = "Comment" },
-    cursorline = { link = "Visual" },
-  },
-  window = {
-    border = "rounded",
-    width = nil,
-    height = nil,
-    max_width = 80,
-    min_width = 36,
-    padding = 2,
-  },
+    labels = "fjdkghslaurieowpqtnmvycxzb",
+    max_items = 20,
+    include_special = false,
+    auto_jump_single = true,
+    fuzzy_key = "/",
+    alternate_key = "<Tab>",
+    alternate_without_label = true,
+    picker = {
+        move_up_key = "K",
+        move_down_key = "J",
+        select_key = "<CR>",
+        toggle_pin_key = "T",
+    },
+    show_icons = true,
+    highlights = {
+        label = { fg = "#ff8800", bold = true },
+        pinned = { link = "DiagnosticOk" },
+        alternate = { link = "DiagnosticWarn" },
+        filename = { link = "Normal" },
+        path = { link = "Comment" },
+        muted = { link = "Comment" },
+        cursorline = { link = "Visual" },
+    },
+    window = {
+        border = "rounded",
+        width = nil,
+        height = nil,
+        max_width = 80,
+        min_width = 36,
+        padding = 2,
+    },
 }
 
 M.values = vim.deepcopy(M.defaults)
 
 function M.setup(opts)
-  M.values = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+    M.values = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
 end
 
 return M
