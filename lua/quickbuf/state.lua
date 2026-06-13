@@ -2,7 +2,15 @@ local M = {
     pinned = {},
     pinned_order = {},
     mru = {},
+    picker_mode = "all",
 }
+
+local function normalize_picker_mode(mode)
+    if mode == "pinned" then
+        return "pinned"
+    end
+    return "all"
+end
 
 local function remove_from_mru(bufnr)
     for i, id in ipairs(M.mru) do
@@ -106,6 +114,23 @@ function M.mru_index_map()
         map[bufnr] = i
     end
     return map
+end
+
+function M.get_picker_mode()
+    M.picker_mode = normalize_picker_mode(M.picker_mode)
+    return M.picker_mode
+end
+
+function M.set_picker_mode(mode)
+    M.picker_mode = normalize_picker_mode(mode)
+    return M.picker_mode
+end
+
+function M.toggle_picker_mode()
+    if M.get_picker_mode() == "pinned" then
+        return M.set_picker_mode("all")
+    end
+    return M.set_picker_mode("pinned")
 end
 
 return M

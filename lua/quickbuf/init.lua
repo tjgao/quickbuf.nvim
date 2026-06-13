@@ -49,6 +49,10 @@ function M.open()
     picker.open()
 end
 
+function M.open_all()
+    picker.open({ pinned_only = false })
+end
+
 function M.open_pinned()
     picker.open({ pinned_only = true })
 end
@@ -96,7 +100,11 @@ end
 local function create_commands()
     vim.api.nvim_create_user_command("QuickBuf", function()
         M.open()
-    end, { desc = "Quick buffer jump" })
+    end, { desc = "Quick buffer jump (current view mode)" })
+
+    vim.api.nvim_create_user_command("QuickBufAll", function()
+        M.open_all()
+    end, { desc = "Quick jump among all buffers" })
 
     vim.api.nvim_create_user_command("QuickBufPinned", function()
         M.open_pinned()

@@ -54,8 +54,11 @@ function M.candidates(opts)
     state.cleanup()
 
     opts = opts or {}
-    local current = vim.api.nvim_get_current_buf()
-    local alternate = vim.fn.bufnr("#")
+    local current = opts.source_bufnr or vim.api.nvim_get_current_buf()
+    local alternate = opts.alternate_bufnr
+    if alternate == nil then
+        alternate = vim.fn.bufnr("#")
+    end
     local mru_index = state.mru_index_map()
 
     local out = {}

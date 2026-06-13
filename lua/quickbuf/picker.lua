@@ -502,6 +502,9 @@ effective_charset = function()
     if is_single_key(picker_keys.toggle_pin_key) then
         reserved[picker_keys.toggle_pin_key] = true
     end
+    if is_single_key(picker_keys.toggle_view_key) then
+        reserved[picker_keys.toggle_view_key] = true
+    end
 
     local out = {}
     for _, ch in ipairs(labels.default_charset()) do
@@ -728,7 +731,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local fuzzy = config.values.fuzzy_key or "/"
         local alternate = config.values.alternate_key or "<Tab>"
 
-        return {
+        local lines = {
             "[Navigation]",
             string.format("- %s/%s move", up, down),
             string.format("- %s open current", select),
@@ -750,6 +753,12 @@ local function apply_keymaps(items, labels_for_items, ctx)
             "- q or <Esc> close",
             "- ? this help",
         }
+
+        if picker_keys.toggle_view_key and picker_keys.toggle_view_key ~= "" then
+            table.insert(lines, 16, string.format("- %s toggle all/pinned view", picker_keys.toggle_view_key))
+        end
+
+        return lines
     end
 
     local function refresh_after_action(cursor_row)
@@ -824,6 +833,14 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local item = items[idx]
         item.pinned = state.toggle_pin(item.bufnr)
         refresh_after_action(idx)
+    end
+
+    local function toggle_picker_view()
+        local idx = get_selected_index() or 1
+        local next_opts = vim.tbl_extend("force", {}, ctx.open_opts or {})
+        next_opts.pinned_only = not (next_opts.pinned_only == true)
+        next_opts.cursor_row = idx
+        M.open(next_opts)
     end
 
     local function visual_targets()
@@ -1138,6 +1155,9 @@ local function apply_keymaps(items, labels_for_items, ctx)
             toggle_selected_or_current_pin(true)
         end, { buffer = M.buf, nowait = true, silent = true })
     end
+    if picker_keys.toggle_view_key and picker_keys.toggle_view_key ~= "" then
+        vim.keymap.set("n", picker_keys.toggle_view_key, toggle_picker_view, { buffer = M.buf, nowait = true, silent = true })
+    end
 
     for i, item in ipairs(items) do
         local label = labels_for_items[i]
@@ -1151,18 +1171,52 @@ end
 
 function M.open(opts)
     opts = opts or {}
-    local source_bufnr = vim.api.nvim_get_current_buf()
-    local alternate_bufnr = vim.fn.bufnr("#")
-    local items = rank.candidates({ include_special = config.values.include_special })
+    local explicit_mode = opts.pinned_only ~= nil
+    local pinned_only
+    if explicit_mode then
+        pinned_only = opts.pinned_only == true
+    else
+        pinned_only = state.get_picker_mode() == "pinned"
+    end
+    local source_bufnr = opts.source_bufnr or vim.api.nvim_get_current_buf()
+    local alternate_bufnr = opts.alternate_bufnr
+    if alternate_bufnr == nil then
+        alternate_bufnr = vim.fn.bufnr("#")
+    end
+    opts.source_bufnr = source_bufnr
+    opts.alternate_bufnr = alternate_bufnr
 
-    if opts.pinned_only then
-        local pinned = {}
-        for _, item in ipairs(items) do
+    local all_items = rank.candidates({
+        include_special = config.values.include_special,
+        source_bufnr = source_bufnr,
+        alternate_bufnr = alternate_bufnr,
+    })
+    local items = all_items
+
+    if pinned_only then
+        local pinned_count = 0
+        local pinned_or_alternate = {}
+        for _, item in ipairs(all_items) do
             if item.pinned then
-                pinned[#pinned + 1] = item
+                pinned_count = pinned_count + 1
+            end
+            if item.pinned or item.alternate then
+                pinned_or_alternate[#pinned_or_alternate + 1] = item
             end
         end
-        items = pinned
+
+        if pinned_count == 0 then
+            if explicit_mode then
+                vim.notify("quickbuf: no pinned buffers", vim.log.levels.INFO)
+                return
+            end
+
+            state.set_picker_mode("all")
+            pinned_only = false
+            items = all_items
+        else
+            items = pinned_or_alternate
+        end
     end
 
     if #items == 0 then
@@ -1174,6 +1228,9 @@ function M.open(opts)
         vim.api.nvim_set_current_buf(items[1].bufnr)
         return
     end
+
+    state.set_picker_mode(pinned_only and "pinned" or "all")
+    opts.pinned_only = pinned_only
 
     local charset = effective_charset()
     local limit = max_visible_items(#items, #charset)
@@ -1216,12 +1273,17 @@ function M.open(opts)
         "? [help]",
         "q [quit]",
     }
+    local picker_keys = config.values.picker or {}
+    if picker_keys.toggle_view_key and picker_keys.toggle_view_key ~= "" then
+        footer_parts[#footer_parts + 1] =
+            string.format("%s [view:%s]", picker_keys.toggle_view_key, opts.pinned_only and "pinned" or "all")
+    end
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         footer_parts[#footer_parts + 1] = string.format("%s [fuzzy]", config.values.fuzzy_key)
     end
 
     open_window(lines, all_highlights, {
-        title = opts.pinned_only and "QuickBuf Pinned" or "QuickBuf",
+        title = pinned_only and "QuickBuf Pinned" or "QuickBuf",
         total_count = #items,
         footer = " " .. table.concat(footer_parts, "  ") .. " ",
     })

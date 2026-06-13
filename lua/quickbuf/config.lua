@@ -13,6 +13,7 @@ M.defaults = {
         move_down_key = "j",
         select_key = "<CR>",
         toggle_pin_key = "T",
+        toggle_view_key = "p",
     },
     show_icons = true,
     highlights = {
