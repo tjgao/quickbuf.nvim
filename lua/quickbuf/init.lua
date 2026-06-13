@@ -11,6 +11,7 @@ local function setup_highlights()
     local groups = {
         label = "QuickBufLabel",
         pinned = "QuickBufPinned",
+        flags = "QuickBufFlags",
         alternate = "QuickBufAlternate",
         filename = "QuickBufFilename",
         path = "QuickBufPath",

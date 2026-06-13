@@ -2,6 +2,32 @@ local state = require("quickbuf.state")
 
 local M = {}
 
+local function buffer_flags(bufnr, is_alternate)
+    local flags = {}
+    if is_alternate then
+        flags[#flags + 1] = "#"
+    end
+
+    local loaded = vim.fn.bufloaded(bufnr) == 1
+    if #vim.fn.win_findbuf(bufnr) > 0 then
+        flags[#flags + 1] = "a"
+    elseif loaded then
+        flags[#flags + 1] = "h"
+    end
+
+    if vim.bo[bufnr].modified then
+        flags[#flags + 1] = "+"
+    end
+    if vim.bo[bufnr].readonly then
+        flags[#flags + 1] = "="
+    end
+    if not vim.bo[bufnr].modifiable then
+        flags[#flags + 1] = "-"
+    end
+
+    return table.concat(flags)
+end
+
 local function buftype_ok(bufnr, include_special)
     if include_special then
         return true
@@ -36,13 +62,15 @@ function M.candidates(opts)
     for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
         if bufnr ~= current and vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buflisted and buftype_ok(bufnr, opts.include_special) then
             local filename, dirname, path = display_parts(bufnr)
+            local is_alternate = bufnr == alternate
             out[#out + 1] = {
                 bufnr = bufnr,
                 filename = filename,
                 dirname = dirname,
                 path = path,
                 pinned = state.is_pinned(bufnr),
-                alternate = bufnr == alternate,
+                alternate = is_alternate,
+                flags = buffer_flags(bufnr, is_alternate),
                 mru_index = mru_index[bufnr] or math.huge,
             }
         end

@@ -18,6 +18,7 @@ M.defaults = {
     highlights = {
         label = { fg = "#ff8800", bold = true },
         pinned = { link = "DiagnosticOk" },
+        flags = { link = "Comment" },
         alternate = { link = "DiagnosticWarn" },
         filename = { link = "Normal" },
         path = { link = "Comment" },

@@ -19,6 +19,8 @@ local CLEAR_UNPINNED_KEY = "c"
 local FORCE_CLEAR_UNPINNED_KEY = "C"
 local WRITE_KEY = "w"
 local WRITE_ALL_KEY = "W"
+local RELOAD_KEY = "r"
+local RELOAD_ALL_KEY = "R"
 local FIRST_ITEM_KEY = "gg"
 local LAST_ITEM_KEY = "G"
 
@@ -98,8 +100,15 @@ local function format_line(item, label)
         byte_col = byte_col + #text
     end
 
-    local pin_mark = item.pinned and " P" or "  "
+    local pin_mark = item.pinned and " P " or "   "
     add(pin_mark, item.pinned and "QuickBufPinned" or "QuickBufMuted")
+
+    local flags = item.flags or ""
+    if flags ~= "" then
+        add(pad_right(flags, 3), "QuickBufFlags")
+    else
+        add("   ", "QuickBufMuted")
+    end
 
     add(" ")
 
@@ -114,14 +123,6 @@ local function format_line(item, label)
     add(" ")
     local label_cell = pad_right(label ~= "" and label or " ", 2)
     add(label_cell, label ~= "" and "QuickBufLabel" or "QuickBufMuted")
-
-    if item.alternate then
-        local k = "#"
-        if type(config.values.alternate_key_display) == "string" and config.values.alternate_key_display ~= "" then
-            k = config.values.alternate_key_display
-        end
-        add(k, "QuickBufAlternate")
-    end
 
     if item.dirname ~= "" then
         add(" ")
@@ -180,6 +181,8 @@ local function effective_charset()
         [FORCE_CLEAR_UNPINNED_KEY] = true,
         [WRITE_KEY] = true,
         [WRITE_ALL_KEY] = true,
+        [RELOAD_KEY] = true,
+        [RELOAD_ALL_KEY] = true,
     }
 
     if is_single_key(config.values.fuzzy_key) then
@@ -306,6 +309,14 @@ local function delete_buffers(bufnrs, force)
 
     for _, bufnr in ipairs(bufnrs) do
         if vim.api.nvim_buf_is_valid(bufnr) then
+            if not force and vim.bo[bufnr].modified then
+                failed[#failed + 1] = {
+                    name = buffer_display_name(bufnr),
+                    reason = "modified",
+                }
+                goto continue
+            end
+
             local ok, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = force == true })
             if ok then
                 state.unpin(bufnr)
@@ -313,10 +324,12 @@ local function delete_buffers(bufnrs, force)
             else
                 failed[#failed + 1] = {
                     name = buffer_display_name(bufnr),
-                    error = tostring(err),
+                    reason = tostring(err):gsub("\n.*$", ""),
                 }
             end
         end
+
+        ::continue::
     end
 
     return deleted, failed
@@ -327,19 +340,25 @@ local function notify_delete_failures(prefix, deleted, failed)
         return
     end
 
-    local max_items = 5
-    local names = {}
+    local max_items = 8
+    local lines = {
+        string.format("quickbuf: %s %d, failed %d", prefix, deleted, #failed),
+    }
     for i = 1, math.min(#failed, max_items) do
-        names[#names + 1] = failed[i].name
+        local item = failed[i]
+        if item.reason and item.reason ~= "" then
+            lines[#lines + 1] = string.format("- %s (%s)", item.name, item.reason)
+        else
+            lines[#lines + 1] = string.format("- %s", item.name)
+        end
     end
 
-    local extra = #failed - #names
-    local suffix = extra > 0 and string.format(" (and %d more)", extra) or ""
-    local list = table.concat(names, ", ")
-    vim.notify(
-        string.format("quickbuf: %s %d, failed %d: %s%s", prefix, deleted, #failed, list, suffix),
-        vim.log.levels.WARN
-    )
+    local extra = #failed - math.min(#failed, max_items)
+    if extra > 0 then
+        lines[#lines + 1] = string.format("- ... and %d more", extra)
+    end
+
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN)
 end
 
 local function write_buffers(bufnrs)
@@ -360,6 +379,26 @@ local function write_buffers(bufnrs)
     end
 
     return written, failed
+end
+
+local function reload_buffers(bufnrs)
+    local reloaded = 0
+    local failed = 0
+
+    for _, bufnr in ipairs(bufnrs) do
+        if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == "" and vim.bo[bufnr].modified then
+            local ok = pcall(vim.api.nvim_buf_call, bufnr, function()
+                vim.cmd("silent edit!")
+            end)
+            if ok then
+                reloaded = reloaded + 1
+            else
+                failed = failed + 1
+            end
+        end
+    end
+
+    return reloaded, failed
 end
 
 local function apply_keymaps(items, labels_for_items, ctx)
@@ -541,7 +580,12 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local targets = {}
         local seen = {}
         for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-            if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buflisted and vim.bo[bufnr].buftype == "" and not seen[bufnr] then
+            if
+                vim.api.nvim_buf_is_valid(bufnr)
+                and vim.bo[bufnr].buflisted
+                and vim.bo[bufnr].buftype == ""
+                and not seen[bufnr]
+            then
                 targets[#targets + 1] = bufnr
                 seen[bufnr] = true
             end
@@ -550,6 +594,53 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local written, failed = write_buffers(targets)
         if failed > 0 then
             vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
+        end
+    end
+
+    local function reload_selected_or_current(prefer_visual)
+        local targets = prefer_visual and visual_targets() or {}
+        if #targets == 0 then
+            local idx = get_selected_index()
+            if idx then
+                targets[1] = items[idx].bufnr
+            end
+        end
+        if #targets == 0 then
+            return
+        end
+
+        local reloaded, failed = reload_buffers(targets)
+        if failed > 0 then
+            vim.notify(string.format("quickbuf: reloaded %d, failed %d", reloaded, failed), vim.log.levels.WARN)
+        end
+        if reloaded > 0 then
+            local idx = get_selected_index() or 1
+            refresh_after_action(idx)
+        end
+    end
+
+    local function reload_all_listed_buffers()
+        local targets = {}
+        local seen = {}
+        for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+            if
+                vim.api.nvim_buf_is_valid(bufnr)
+                and vim.bo[bufnr].buflisted
+                and vim.bo[bufnr].buftype == ""
+                and not seen[bufnr]
+            then
+                targets[#targets + 1] = bufnr
+                seen[bufnr] = true
+            end
+        end
+
+        local reloaded, failed = reload_buffers(targets)
+        if failed > 0 then
+            vim.notify(string.format("quickbuf: reloaded %d, failed %d", reloaded, failed), vim.log.levels.WARN)
+        end
+        if reloaded > 0 then
+            local idx = get_selected_index() or 1
+            refresh_after_action(idx)
         end
     end
 
@@ -603,6 +694,13 @@ local function apply_keymaps(items, labels_for_items, ctx)
         write_selected_or_current(true)
     end, { buffer = M.buf, nowait = true, silent = true })
     vim.keymap.set("n", WRITE_ALL_KEY, write_all_listed_buffers, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", RELOAD_KEY, function()
+        reload_selected_or_current(false)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("x", RELOAD_KEY, function()
+        reload_selected_or_current(true)
+    end, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", RELOAD_ALL_KEY, reload_all_listed_buffers, { buffer = M.buf, nowait = true, silent = true })
 
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         vim.keymap.set("n", config.values.fuzzy_key, function()

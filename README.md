@@ -11,12 +11,12 @@ Early MVP.
 - Quick label picker for `buflisted` buffers (excludes current buffer)
 - Ranking: pinned first, then alternate buffer (`#`), then MRU
 - Render filename first, with label right next to filename and parent path dimmed
-- Clear markers: `P` for pinned, `#` for alternate
+- Vim-style flags are shown after pin mark (e.g. `#a+`, `h+`)
 - Optional icons via `nvim-web-devicons`
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to fall back to fuzzy buffers (Snacks/Telescope/fzf-lua)
-- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `<CR>` open current
+- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `<CR>` open current
 - Pin toggle and pinned-only picker
 - Next/previous pinned buffer cycling
 
@@ -73,6 +73,7 @@ require("quickbuf").setup({
   highlights = {
     label = { fg = "#ff8800", bold = true },
     pinned = { link = "DiagnosticOk" },
+    flags = { link = "Comment" },
     alternate = { link = "DiagnosticWarn" },
     filename = { link = "Normal" },
     path = { link = "Comment" },
@@ -95,7 +96,7 @@ require("quickbuf").setup({
 - Labels are always one-key and use an internal ergonomic charset.
 - Visible items are capped to that internal label count, with `+X more` overflow hint.
 - `isolate_keymaps = true` blocks unrelated normal-mode mappings inside picker.
-- `gg/G`, `V`, `dd/d/D`, `c/C`, and `w/W` are reserved from labels to avoid conflicts.
+- `gg/G`, `V`, `dd/d/D`, `c/C`, `w/W`, and `r/R` are reserved from labels to avoid conflicts.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
 - `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
