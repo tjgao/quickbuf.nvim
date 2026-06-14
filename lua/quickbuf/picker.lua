@@ -162,13 +162,14 @@ local function apply_keymaps(items, labels_for_items, ctx)
         ui.close()
         if vim.api.nvim_buf_is_valid(bufnr) then
             if open_mode == "split" then
-                vim.cmd("split")
+                vim.cmd("sbuffer " .. bufnr)
             elseif open_mode == "vsplit" then
-                vim.cmd("vsplit")
+                vim.cmd("vert sbuffer " .. bufnr)
             elseif open_mode == "tab" then
-                vim.cmd("tabnew")
+                vim.cmd("tab sbuffer " .. bufnr)
+            else
+                vim.api.nvim_set_current_buf(bufnr)
             end
-            vim.api.nvim_set_current_buf(bufnr)
         end
     end
 

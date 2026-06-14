@@ -6,6 +6,13 @@ Fast buffer switching inspired by flash-like label picking.
 
 Early MVP.
 
+## Why QuickBuf
+
+- Keep a task-focused working set: pin the few buffers you touch repeatedly.
+- Switch quickly inside that set with `:QuickBufNextPinned` / `:QuickBufPrevPinned`.
+- Clean up safely with `c/C`: unpinned buffers are removed, pinned buffers stay.
+- Use one-key labels for speed, and `/` fuzzy fallback when your instinct is filename typing.
+
 ## Features
 
 - Quick label picker for `buflisted` buffers (excludes current buffer)
@@ -20,7 +27,22 @@ Early MVP.
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `s/v/t + label` open in split/vsplit/tab, `<CR>` open current (`s/v/t` mode applies to `<CR>`/`<Tab>` too)
 - `?` opens an in-picker help popup with all actions
 - Pin toggle and next/previous pinned buffer cycling
-- Next/previous pinned buffer cycling
+
+## Demo
+
+<!-- Demo source https://github.com/tjgao/assets/raw/refs/heads/main/videos/QuickBuf-demo.mp4-->
+https://github.com/tjgao/assets/raw/refs/heads/main/videos/QuickBuf-demo.mp4
+
+## Demo Walkthrough
+
+1. One-key jump: press a label to open its buffer.
+2. Batch pin/unpin: `V` linewise visual selection, then `T` to toggle pinned.
+3. Priority behavior: alternate buffer and pinned buffers rank first; use `<Tab>` for alternate.
+4. Quick pinned switching: `:QuickBufNextPinned` and `:QuickBufPrevPinned`.
+5. Batch delete: `V` linewise visual selection, then `d` (safe) or `D` (force).
+6. `s/v/t` open modes: `s` split, `v` vsplit, `t` tab, then pick a label.
+7. Fuzzy fallback: `/` to open fuzzy picker (`auto`: Snacks/Telescope/fzf-lua, or custom backend).
+8. Cleanup unpinned buffers: `c` (safe) or `C` (force).
 
 ## Install
 
