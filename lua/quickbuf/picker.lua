@@ -143,7 +143,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             "",
             "[Other]",
             string.format("- %s fuzzy fallback", fuzzy_key),
-            "- <Esc> cancel split-mode, then close",
+            "- <Esc> cancel svt mode, then close",
             "- q close",
             "- ? this help",
         }
@@ -468,7 +468,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
     local function refresh_footer()
         local pending = pending_open_message()
         if pending then
-            ui.set_footer_highlight("QuickBufLabel")
+            ui.set_footer_highlight("QuickBufFooterSvt")
             ui.set_footer(pending)
             return
         end
@@ -726,7 +726,7 @@ function M.open(opts)
     local footer_parts = {
         "? [help]",
         "q [quit]",
-        "s/v/t [split]",
+        "s/v/t [mode]",
     }
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         footer_parts[#footer_parts + 1] = string.format("%s [fuzzy]", config.values.fuzzy_key)

@@ -18,14 +18,15 @@ M.defaults = {
     },
     show_icons = true,
     highlights = {
-        label = { link = "DiagnosticWarn", bold = true },
-        pinned = { link = "DiagnosticOk" },
+        label = { fg = "#ff8800", bold = true },
+        pinned = { link = "DiagnosticOk", bold = true },
         flags = { link = "Comment" },
         alternate = { fg = "#ff8800", bold = true },
         filename = { link = "Normal" },
         path = { link = "Comment" },
         muted = { link = "Comment" },
         cursorline = { link = "Visual" },
+        footer_svt = { link = "DiagnosticWarn" },
     },
     window = {
         border = "rounded",

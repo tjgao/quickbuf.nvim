@@ -120,6 +120,7 @@ require("quickbuf").setup({
     highlights = {
         label = { fg = "#ff5f00", bold = true },
         path = { fg = "#6c7086", italic = true },
+        alternate = { link = "DiagnosticWarn", bold = true },
     },
 })
 ```

@@ -26,6 +26,7 @@ local function setup_highlights()
         path = "QuickBufPath",
         muted = "QuickBufMuted",
         cursorline = "QuickBufCursorLine",
+        footer_svt = "QuickBufFooterSvt",
     }
 
     for key, group_name in pairs(groups) do
