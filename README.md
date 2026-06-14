@@ -16,7 +16,7 @@ Early MVP.
 - Optional icons via `nvim-web-devicons`
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
-- Press `/` in picker to fall back to fuzzy buffers (Snacks/Telescope/fzf-lua)
+- Press `/` in picker to open fuzzy buffers (`fuzzy_backend`: auto/Snacks/Telescope/fzf/custom)
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `<CR>` open current
 - `?` opens an in-picker help popup with all actions
 - Pin toggle and next/previous pinned buffer cycling
@@ -61,6 +61,8 @@ require("quickbuf").setup({
     auto_jump_single = false,
     isolate_keymaps = true,
     fuzzy_key = "/",
+    fuzzy_backend = "auto",
+    fuzzy_open = nil,
     alternate_key = "<Tab>",
     alternate_key_display = "",
     alternate_without_label = true,
@@ -101,6 +103,9 @@ require("quickbuf").setup({
 - `gg/G`, `V`, `dd/d/D`, `c/C`, `w/W`, and `r/R` are reserved from labels to avoid conflicts.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
+- `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua.
+- Set `fuzzy_backend` to `"snacks"`, `"telescope"`, or `"fzf"` to force one backend.
+- Set `fuzzy_backend = "custom"` and provide `fuzzy_open = function(size) ... end` to integrate any picker.
 - `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
 - Override colors with `highlights = { ... }` in setup.
 - `window.width`, `window.height`, `window.min_width`, and `window.max_width` accept absolute numbers (`80`) or percentages (`0.6`).
@@ -128,5 +133,23 @@ require("quickbuf").setup({
         min_width = 0.4,
         max_width = 0.8,
     },
+})
+```
+
+Example custom fuzzy backend:
+
+```lua
+require("quickbuf").setup({
+    fuzzy_backend = "custom",
+    fuzzy_open = function(size)
+        require("mini.pick").builtin.buffers({
+            window = {
+                config = {
+                    width = size.width_cols,
+                    height = size.height_rows,
+                },
+            },
+        })
+    end,
 })
 ```

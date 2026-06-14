@@ -113,23 +113,27 @@ end
 function M.open(opts)
     local size = fuzzy_picker_size(opts)
 
-    local ok_snacks, snacks = pcall(require, "snacks")
-    if ok_snacks and snacks and snacks.picker and type(snacks.picker.buffers) == "function" then
+    local function open_snacks(size_hint)
+        local ok_snacks, snacks = pcall(require, "snacks")
+        if not (ok_snacks and snacks and snacks.picker and type(snacks.picker.buffers) == "function") then
+            return false
+        end
+
         local before_float_wins = float_window_set()
         local ok = pcall(snacks.picker.buffers, {
             preview = false,
             layout = {
                 preset = "select",
                 preview = false,
-                width = size.width_frac,
-                height = size.height_frac,
-                min_width = size.width_cols,
-                max_width = size.width_cols,
-                min_height = size.height_rows,
-                max_height = size.height_rows,
+                width = size_hint.width_frac,
+                height = size_hint.height_frac,
+                min_width = size_hint.width_cols,
+                max_width = size_hint.width_cols,
+                min_height = size_hint.height_rows,
+                max_height = size_hint.height_rows,
                 layout = {
-                    width = size.width_cols,
-                    height = size.height_rows,
+                    width = size_hint.width_cols,
+                    height = size_hint.height_rows,
                 },
             },
         })
@@ -139,15 +143,15 @@ function M.open(opts)
                 layout = {
                     preset = "default",
                     preview = false,
-                    width = size.width_frac,
-                    height = size.height_frac,
-                    min_width = size.width_cols,
-                    max_width = size.width_cols,
-                    min_height = size.height_rows,
-                    max_height = size.height_rows,
+                    width = size_hint.width_frac,
+                    height = size_hint.height_frac,
+                    min_width = size_hint.width_cols,
+                    max_width = size_hint.width_cols,
+                    min_height = size_hint.height_rows,
+                    max_height = size_hint.height_rows,
                     layout = {
-                        width = size.width_cols,
-                        height = size.height_rows,
+                        width = size_hint.width_cols,
+                        height = size_hint.height_rows,
                     },
                 },
             })
@@ -155,40 +159,108 @@ function M.open(opts)
                 snacks.picker.buffers()
             end
         end
-        enforce_new_float_size(before_float_wins, size.width_cols, size.height_rows)
-        return
+        enforce_new_float_size(before_float_wins, size_hint.width_cols, size_hint.height_rows)
+        return true
     end
 
-    local ok_telescope, telescope = pcall(require, "telescope.builtin")
-    if ok_telescope and telescope and type(telescope.buffers) == "function" then
+    local function open_telescope(size_hint)
+        local ok_telescope, telescope = pcall(require, "telescope.builtin")
+        if not (ok_telescope and telescope and type(telescope.buffers) == "function") then
+            return false
+        end
+
         local telescope_opts = { previewer = false }
         local ok_theme, themes = pcall(require, "telescope.themes")
         if ok_theme and themes and type(themes.get_dropdown) == "function" then
             telescope_opts = themes.get_dropdown({
                 previewer = false,
-                width = size.width_frac,
-                height = size.height_frac,
+                width = size_hint.width_frac,
+                height = size_hint.height_frac,
             })
         else
-            telescope_opts.width = size.width_frac
-            telescope_opts.height = size.height_frac
+            telescope_opts.width = size_hint.width_frac
+            telescope_opts.height = size_hint.height_frac
         end
         telescope.buffers(telescope_opts)
-        return
+        return true
     end
 
-    local ok_fzf, fzf = pcall(require, "fzf-lua")
-    if ok_fzf and fzf and type(fzf.buffers) == "function" then
+    local function open_fzf_lua(size_hint)
+        local ok_fzf, fzf = pcall(require, "fzf-lua")
+        if not (ok_fzf and fzf and type(fzf.buffers) == "function") then
+            return false
+        end
+
         fzf.buffers({
             previewer = false,
             winopts = {
-                width = size.width_frac,
-                height = size.height_frac,
+                width = size_hint.width_frac,
+                height = size_hint.height_frac,
                 preview = {
                     hidden = "hidden",
                 },
             },
         })
+        return true
+    end
+
+    local backend = config.values.fuzzy_backend or "auto"
+    if backend == "custom" then
+        local custom = config.values.fuzzy_open
+        if type(custom) ~= "function" then
+            vim.notify(
+                "quickbuf: fuzzy_backend is 'custom' but fuzzy_open is not a function",
+                vim.log.levels.WARN
+            )
+            return
+        end
+        local ok, err = pcall(custom, {
+            width_cols = size.width_cols,
+            height_rows = size.height_rows,
+            width_frac = size.width_frac,
+            height_frac = size.height_frac,
+        })
+        if not ok then
+            vim.notify("quickbuf: custom fuzzy_open failed: " .. tostring(err), vim.log.levels.WARN)
+        end
+        return
+    end
+
+    if backend == "snacks" then
+        if not open_snacks(size) then
+            vim.notify("quickbuf: fuzzy backend 'snacks' is unavailable", vim.log.levels.WARN)
+        end
+        return
+    end
+
+    if backend == "telescope" then
+        if not open_telescope(size) then
+            vim.notify("quickbuf: fuzzy backend 'telescope' is unavailable", vim.log.levels.WARN)
+        end
+        return
+    end
+
+    if backend == "fzf" then
+        if not open_fzf_lua(size) then
+            vim.notify("quickbuf: fuzzy backend 'fzf' is unavailable", vim.log.levels.WARN)
+        end
+        return
+    end
+
+    if backend ~= "auto" then
+        vim.notify("quickbuf: unknown fuzzy_backend '" .. tostring(backend) .. "'", vim.log.levels.WARN)
+        return
+    end
+
+    if open_snacks(size) then
+        return
+    end
+
+    if open_telescope(size) then
+        return
+    end
+
+    if open_fzf_lua(size) then
         return
     end
 
