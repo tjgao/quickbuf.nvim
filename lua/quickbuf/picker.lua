@@ -19,6 +19,9 @@ local RELOAD_KEY = "r"
 local RELOAD_ALL_KEY = "R"
 local FIRST_ITEM_KEY = "gg"
 local LAST_ITEM_KEY = "G"
+local OPEN_SPLIT_PREFIX_KEY = "s"
+local OPEN_VSPLIT_PREFIX_KEY = "v"
+local OPEN_TAB_PREFIX_KEY = "t"
 
 local function is_single_key(key)
     return type(key) == "string" and #key == 1
@@ -38,6 +41,9 @@ local function effective_charset()
         [WRITE_ALL_KEY] = true,
         [RELOAD_KEY] = true,
         [RELOAD_ALL_KEY] = true,
+        [OPEN_SPLIT_PREFIX_KEY] = true,
+        [OPEN_VSPLIT_PREFIX_KEY] = true,
+        [OPEN_TAB_PREFIX_KEY] = true,
     }
 
     if is_single_key(config.values.fuzzy_key) then
@@ -119,7 +125,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
 
         local lines = {
             "[Navigation]",
-            string.format("- %s/%s move", up, down),
+            string.format("- %s/%s move up/down", up, down),
             string.format("- %s open current", select),
             "- gg/G first/last",
             string.format("- %s alternate buffer", alternate),
@@ -132,11 +138,13 @@ local function apply_keymaps(items, labels_for_items, ctx)
             "- c/C clear unpinned (safe/force)",
             "- w/W write current-or-selection/all",
             "- r/R reload modified current-or-selection/all",
+            "- s/v/t + label open in split/vsplit/tab",
             string.format("- %s toggle pinned/unpinned", toggle_pin),
             "",
             "[Other]",
             string.format("- %s fuzzy fallback", fuzzy_key),
-            "- q or <Esc> close",
+            "- <Esc> cancel split-mode, then close",
+            "- q close",
             "- ? this help",
         }
 
@@ -150,9 +158,16 @@ local function apply_keymaps(items, labels_for_items, ctx)
         M.open(next_opts)
     end
 
-    local function pick(bufnr)
+    local function pick(bufnr, open_mode)
         ui.close()
         if vim.api.nvim_buf_is_valid(bufnr) then
+            if open_mode == "split" then
+                vim.cmd("split")
+            elseif open_mode == "vsplit" then
+                vim.cmd("vsplit")
+            elseif open_mode == "tab" then
+                vim.cmd("tabnew")
+            end
             vim.api.nvim_set_current_buf(bufnr)
         end
     end
@@ -203,12 +218,14 @@ local function apply_keymaps(items, labels_for_items, ctx)
         ui.set_cursor((ctx.line_offset or 0) + next_idx, 0)
     end
 
+    local consume_pending_open_mode
+
     local function pick_current()
         local idx = get_selected_index()
         if not idx then
             return
         end
-        pick(items[idx].bufnr)
+        pick(items[idx].bufnr, consume_pending_open_mode())
     end
 
     local function toggle_current_pin()
@@ -433,8 +450,58 @@ local function apply_keymaps(items, labels_for_items, ctx)
     local picker_keys = config.values.picker or {}
     local map_buf = ui.get_buf()
     local focus_refresh_armed = false
+    local pending_open_mode = nil
 
-    vim.keymap.set("n", "<Esc>", ui.close, { buffer = map_buf, nowait = true, silent = true })
+    local function pending_open_message()
+        if pending_open_mode == "split" then
+            return " Current Mode: Split (ESC to cancel)"
+        end
+        if pending_open_mode == "vsplit" then
+            return " Current Mode: VSplit (ESC to cancel)"
+        end
+        if pending_open_mode == "tab" then
+            return " Current Mode: Tab (ESC to cancel)"
+        end
+        return nil
+    end
+
+    local function refresh_footer()
+        local pending = pending_open_message()
+        if pending then
+            ui.set_footer_highlight("QuickBufLabel")
+            ui.set_footer(pending)
+            return
+        end
+        ui.set_footer_highlight("QuickBufFilename")
+        ui.set_footer(ctx.footer or " ? [help]  q [quit] ")
+    end
+
+    local function set_pending_open_mode(mode)
+        if pending_open_mode == mode then
+            pending_open_mode = nil
+        else
+            pending_open_mode = mode
+        end
+        refresh_footer()
+    end
+
+    consume_pending_open_mode = function()
+        local mode = pending_open_mode
+        pending_open_mode = nil
+        refresh_footer()
+        return mode
+    end
+
+    local function close_or_cancel_pending_mode()
+        if pending_open_mode then
+            pending_open_mode = nil
+            refresh_footer()
+            return
+        end
+        ui.close()
+    end
+
+    vim.keymap.set("n", "<Esc>", close_or_cancel_pending_mode, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", "q", ui.close, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", FIRST_ITEM_KEY, function()
         ui.set_cursor((ctx.line_offset or 0) + 1, 0)
@@ -483,6 +550,16 @@ local function apply_keymaps(items, labels_for_items, ctx)
     end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", RELOAD_ALL_KEY, reload_all_listed_buffers, { buffer = map_buf, nowait = true, silent = true })
 
+    vim.keymap.set("n", OPEN_SPLIT_PREFIX_KEY, function()
+        set_pending_open_mode("split")
+    end, { buffer = map_buf, nowait = true, silent = true })
+    vim.keymap.set("n", OPEN_VSPLIT_PREFIX_KEY, function()
+        set_pending_open_mode("vsplit")
+    end, { buffer = map_buf, nowait = true, silent = true })
+    vim.keymap.set("n", OPEN_TAB_PREFIX_KEY, function()
+        set_pending_open_mode("tab")
+    end, { buffer = map_buf, nowait = true, silent = true })
+
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         vim.keymap.set("n", config.values.fuzzy_key, function()
             local size_hint = {}
@@ -511,7 +588,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
                 and vim.api.nvim_buf_is_valid(alternate)
                 and vim.bo[alternate].buflisted
             then
-                pick(alternate)
+                pick(alternate, consume_pending_open_mode())
             else
                 vim.notify("quickbuf: no alternate buffer", vim.log.levels.INFO)
             end
@@ -573,10 +650,12 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local label = labels_for_items[i]
         if label and label ~= "" then
             vim.keymap.set("n", label, function()
-                pick(item.bufnr)
+                pick(item.bufnr, consume_pending_open_mode())
             end, { buffer = map_buf, nowait = true, silent = true })
         end
     end
+
+    refresh_footer()
 end
 
 function M.open(opts)
@@ -647,15 +726,18 @@ function M.open(opts)
     local footer_parts = {
         "? [help]",
         "q [quit]",
+        "s/v/t [split]",
     }
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         footer_parts[#footer_parts + 1] = string.format("%s [fuzzy]", config.values.fuzzy_key)
     end
 
+    local footer = " " .. table.concat(footer_parts, "  ") .. " "
+
     ui.open_picker(lines, all_highlights, {
         title = "QuickBuf",
         total_count = #items,
-        footer = " " .. table.concat(footer_parts, "  ") .. " ",
+        footer = footer,
     })
 
     apply_keymaps(shown, labels_for_items, {
@@ -666,6 +748,7 @@ function M.open(opts)
         all_items = items,
         open_opts = opts,
         line_offset = line_offset,
+        footer = footer,
     })
 
     if ui.is_win_valid() then

@@ -17,7 +17,7 @@ Early MVP.
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to open fuzzy buffers (`fuzzy_backend`: auto/Snacks/Telescope/fzf/custom)
-- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `<CR>` open current
+- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `s/v/t + label` open in split/vsplit/tab, `<CR>` open current (`s/v/t` mode applies to `<CR>`/`<Tab>` too)
 - `?` opens an in-picker help popup with all actions
 - Pin toggle and next/previous pinned buffer cycling
 - Next/previous pinned buffer cycling
@@ -100,7 +100,8 @@ require("quickbuf").setup({
 - Labels are always one-key and use an internal ergonomic charset.
 - Visible items are capped to that internal label count, with `+X more` overflow hint.
 - `isolate_keymaps = true` blocks unrelated normal-mode mappings inside picker.
-- `gg/G`, `V`, `dd/d/D`, `c/C`, `w/W`, and `r/R` are reserved from labels to avoid conflicts.
+- `gg/G`, `V`, `dd/d/D`, `c/C`, `w/W`, `r/R`, and `s/v/t` are reserved from labels to avoid conflicts.
+- In `s/v/t` mode, `<Esc>` cancels mode first; press `<Esc>` again to close picker.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
 - `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua.

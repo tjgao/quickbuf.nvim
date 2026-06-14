@@ -11,6 +11,12 @@ local M = {
     help_buf = nil,
 }
 
+local function picker_winhighlight(footer_group)
+    return "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:"
+        .. footer_group
+        .. ",CursorLine:QuickBufCursorLine"
+end
+
 local function str_width(s)
     return vim.fn.strdisplaywidth(s)
 end
@@ -169,6 +175,29 @@ function M.render(lines, all_highlights)
     vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, lines)
     apply_highlights(all_highlights)
     vim.bo[M.buf].modifiable = false
+end
+
+function M.set_footer(text)
+    if not M.is_win_valid() then
+        return
+    end
+
+    local cfg = vim.api.nvim_win_get_config(M.win)
+    cfg.footer = text
+    cfg.footer_pos = "center"
+    pcall(vim.api.nvim_win_set_config, M.win, cfg)
+end
+
+function M.set_footer_highlight(group)
+    if not M.is_win_valid() then
+        return
+    end
+
+    local footer_group = group
+    if type(footer_group) ~= "string" or footer_group == "" then
+        footer_group = "QuickBufFilename"
+    end
+    vim.wo[M.win].winhighlight = picker_winhighlight(footer_group)
 end
 
 function M.build_lines(items, labels_for_items, hidden_count)
@@ -358,8 +387,7 @@ function M.open_picker(lines, all_highlights, meta)
     vim.wo[M.win].number = false
     vim.wo[M.win].relativenumber = false
     vim.wo[M.win].cursorline = true
-    vim.wo[M.win].winhighlight =
-        "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:QuickBufFilename,CursorLine:QuickBufCursorLine"
+    vim.wo[M.win].winhighlight = picker_winhighlight("QuickBufFilename")
     vim.wo[M.win].signcolumn = "no"
     vim.wo[M.win].wrap = false
     vim.api.nvim_win_set_cursor(M.win, { 1, 0 })
