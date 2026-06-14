@@ -445,6 +445,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
 
     local picker_keys = config.values.picker or {}
     local map_buf = ui.get_buf()
+    local focus_refresh_armed = false
 
     vim.keymap.set("n", "<Esc>", ui.close, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", "q", ui.close, { buffer = map_buf, nowait = true, silent = true })
@@ -558,6 +559,33 @@ local function apply_keymaps(items, labels_for_items, ctx)
             { buffer = map_buf, nowait = true, silent = true }
         )
     end
+
+    vim.api.nvim_create_autocmd("WinLeave", {
+        buffer = map_buf,
+        callback = function()
+            focus_refresh_armed = true
+        end,
+    })
+
+    vim.api.nvim_create_autocmd("WinEnter", {
+        buffer = map_buf,
+        callback = function()
+            if not focus_refresh_armed then
+                return
+            end
+            local win = ui.get_win()
+            if not win or not vim.api.nvim_win_is_valid(win) then
+                return
+            end
+            if vim.api.nvim_get_current_win() ~= win then
+                return
+            end
+
+            focus_refresh_armed = false
+            local idx = get_selected_index() or 1
+            refresh_after_action(idx)
+        end,
+    })
 
     for i, item in ipairs(items) do
         local label = labels_for_items[i]
