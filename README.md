@@ -153,3 +153,7 @@ require("quickbuf").setup({
     end,
 })
 ```
+
+## License
+
+MIT. See `LICENSE`.

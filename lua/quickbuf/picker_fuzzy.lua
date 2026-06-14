@@ -169,17 +169,25 @@ function M.open(opts)
             return false
         end
 
+        local function apply_telescope_size(telescope_opts)
+            telescope_opts = telescope_opts or {}
+            telescope_opts.width = size_hint.width_cols
+            telescope_opts.height = size_hint.height_rows
+            telescope_opts.layout_config = vim.tbl_deep_extend("force", telescope_opts.layout_config or {}, {
+                width = size_hint.width_cols,
+                height = size_hint.height_rows,
+            })
+            return telescope_opts
+        end
+
         local telescope_opts = { previewer = false }
         local ok_theme, themes = pcall(require, "telescope.themes")
         if ok_theme and themes and type(themes.get_dropdown) == "function" then
-            telescope_opts = themes.get_dropdown({
+            telescope_opts = themes.get_dropdown(apply_telescope_size({
                 previewer = false,
-                width = size_hint.width_frac,
-                height = size_hint.height_frac,
-            })
+            }))
         else
-            telescope_opts.width = size_hint.width_frac
-            telescope_opts.height = size_hint.height_frac
+            telescope_opts = apply_telescope_size(telescope_opts)
         end
         telescope.buffers(telescope_opts)
         return true
@@ -204,7 +212,12 @@ function M.open(opts)
         return true
     end
 
-    local backend = config.values.fuzzy_backend or "auto"
+    local backend = config.values.fuzzy_backend
+    if type(backend) ~= "string" or backend == "" then
+        backend = "auto"
+    else
+        backend = string.lower(backend)
+    end
     if backend == "custom" then
         local custom = config.values.fuzzy_open
         if type(custom) ~= "function" then
