@@ -1,18 +1,12 @@
+local actions = require("quickbuf.picker_actions")
 local config = require("quickbuf.config")
+local fuzzy = require("quickbuf.picker_fuzzy")
 local labels = require("quickbuf.labels")
 local rank = require("quickbuf.rank")
 local state = require("quickbuf.state")
+local ui = require("quickbuf.picker_ui")
 
-local ns = vim.api.nvim_create_namespace("QuickBufPicker")
-
-local ok_devicons, devicons = pcall(require, "nvim-web-devicons")
-
-local M = {
-    win = nil,
-    buf = nil,
-    help_win = nil,
-    help_buf = nil,
-}
+local M = {}
 
 local VISUAL_SELECT_KEY = "V"
 local DELETE_KEY = "d"
@@ -26,447 +20,11 @@ local RELOAD_ALL_KEY = "R"
 local FIRST_ITEM_KEY = "gg"
 local LAST_ITEM_KEY = "G"
 
-local effective_charset
-
-local function str_width(s)
-    return vim.fn.strdisplaywidth(s)
-end
-
-local function pad_right(s, width)
-    local missing = width - str_width(s)
-    if missing <= 0 then
-        return s
-    end
-    return s .. string.rep(" ", missing)
-end
-
-local function icon_for_item(item)
-    if not config.values.show_icons then
-        return "", nil
-    end
-
-    if ok_devicons and item.path ~= "" then
-        local ext = vim.fn.fnamemodify(item.path, ":e")
-        local icon, hl = devicons.get_icon(item.filename, ext, { default = true })
-        return icon or "", hl
-    end
-
-    return "", nil
-end
-
-local function normalize_dimension(value, total, fallback)
-    if type(value) ~= "number" then
-        return fallback
-    end
-    if value > 0 and value <= 1 then
-        return math.max(1, math.floor(total * value))
-    end
-    if value > 1 then
-        return math.floor(value)
-    end
-    return fallback
-end
-
-local function max_visible_items(total_items, label_limit)
-    if total_items <= 0 or label_limit <= 0 then
-        return 0
-    end
-
-    local max_rows = math.max(1, vim.o.lines - 4)
-    local vertical_padding =
-        math.max(0, math.floor((config.values.window and config.values.window.vertical_padding) or 0))
-    local cap = math.min(total_items, label_limit)
-
-    for shown = cap, 1, -1 do
-        local hidden_count = total_items - shown
-        local line_count = shown + (vertical_padding * 2) + (hidden_count > 0 and 1 or 0)
-        if line_count <= max_rows then
-            return shown
-        end
-    end
-
-    return 1
-end
-
-local function fuzzy_height_fallback()
-    local items = rank.candidates({ include_special = config.values.include_special })
-    local charset = effective_charset()
-    local shown_count = max_visible_items(#items, #charset)
-    local hidden_count = math.max(0, #items - shown_count)
-    local vertical_padding =
-        math.max(0, math.floor((config.values.window and config.values.window.vertical_padding) or 0))
-
-    local content_height = shown_count + (vertical_padding * 2)
-    if hidden_count > 0 then
-        content_height = content_height + 1
-    end
-
-    return math.max(1, content_height)
-end
-
-local function float_window_set()
-    local out = {}
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-        if vim.api.nvim_win_is_valid(win) then
-            local cfg = vim.api.nvim_win_get_config(win)
-            if cfg.relative and cfg.relative ~= "" then
-                out[win] = true
-            end
-        end
-    end
-    return out
-end
-
-local function enforce_new_float_size(before_set, width, height)
-    local function apply_once()
-        local target = nil
-        local target_area = -1
-
-        for _, win in ipairs(vim.api.nvim_list_wins()) do
-            if not before_set[win] and vim.api.nvim_win_is_valid(win) then
-                local cfg = vim.api.nvim_win_get_config(win)
-                if
-                    cfg.relative
-                    and cfg.relative ~= ""
-                    and type(cfg.width) == "number"
-                    and type(cfg.height) == "number"
-                then
-                    local area = cfg.width * cfg.height
-                    if area > target_area then
-                        target = win
-                        target_area = area
-                    end
-                end
-            end
-        end
-
-        if not target then
-            return false
-        end
-
-        local cfg = vim.api.nvim_win_get_config(target)
-        cfg.width = width
-        cfg.height = height
-        pcall(vim.api.nvim_win_set_config, target, cfg)
-        return true
-    end
-
-    if apply_once() then
-        return
-    end
-
-    vim.defer_fn(apply_once, 20)
-    vim.defer_fn(apply_once, 80)
-end
-
-local function fuzzy_picker_size(opts)
-    opts = opts or {}
-    local cfg = config.values.window or {}
-    local columns = math.max(1, vim.o.columns)
-    local lines = math.max(1, vim.o.lines - 2)
-
-    local min_width = normalize_dimension(cfg.min_width, columns, math.floor(columns * 0.35))
-    local max_width = normalize_dimension(cfg.max_width, columns, math.floor(columns * 0.8))
-    min_width = math.max(1, math.min(min_width, columns))
-    max_width = math.max(1, math.min(max_width, columns))
-    if min_width > max_width then
-        min_width, max_width = max_width, min_width
-    end
-
-    local width_cols = normalize_dimension(cfg.width, columns, max_width)
-    if type(opts.width_cols) == "number" and opts.width_cols > 0 then
-        width_cols = math.floor(opts.width_cols)
-    else
-        width_cols = math.max(min_width, math.min(max_width, width_cols))
-    end
-    width_cols = math.max(1, math.min(columns, width_cols))
-
-    local fallback_height = fuzzy_height_fallback()
-    local height_rows = normalize_dimension(cfg.height, lines, fallback_height)
-    if type(opts.height_rows) == "number" and opts.height_rows > 0 then
-        height_rows = math.floor(opts.height_rows)
-    end
-    height_rows = math.max(1, math.min(math.max(1, vim.o.lines - 4), height_rows))
-
-    local width_frac = math.max(0.2, math.min(1.0, width_cols / columns))
-    local height_frac = math.max(0.2, math.min(1.0, height_rows / lines))
-
-    return {
-        width_cols = width_cols,
-        height_rows = height_rows,
-        width_frac = width_frac,
-        height_frac = height_frac,
-    }
-end
-
-local function open_fuzzy_buffers(opts)
-    local size = fuzzy_picker_size(opts)
-
-    local ok_snacks, snacks = pcall(require, "snacks")
-    if ok_snacks and snacks and snacks.picker and type(snacks.picker.buffers) == "function" then
-        local before_float_wins = float_window_set()
-        local ok = pcall(snacks.picker.buffers, {
-            preview = false,
-            layout = {
-                preset = "select",
-                preview = false,
-                width = size.width_frac,
-                height = size.height_frac,
-                min_width = size.width_cols,
-                max_width = size.width_cols,
-                min_height = size.height_rows,
-                max_height = size.height_rows,
-                layout = {
-                    width = size.width_cols,
-                    height = size.height_rows,
-                },
-            },
-        })
-        if not ok then
-            local ok_fallback = pcall(snacks.picker.buffers, {
-                preview = false,
-                layout = {
-                    preset = "default",
-                    preview = false,
-                    width = size.width_frac,
-                    height = size.height_frac,
-                    min_width = size.width_cols,
-                    max_width = size.width_cols,
-                    min_height = size.height_rows,
-                    max_height = size.height_rows,
-                    layout = {
-                        width = size.width_cols,
-                        height = size.height_rows,
-                    },
-                },
-            })
-            if not ok_fallback then
-                snacks.picker.buffers()
-            end
-        end
-        enforce_new_float_size(before_float_wins, size.width_cols, size.height_rows)
-        return
-    end
-
-    local ok_telescope, telescope = pcall(require, "telescope.builtin")
-    if ok_telescope and telescope and type(telescope.buffers) == "function" then
-        local opts = { previewer = false }
-        local ok_theme, themes = pcall(require, "telescope.themes")
-        if ok_theme and themes and type(themes.get_dropdown) == "function" then
-            opts = themes.get_dropdown({
-                previewer = false,
-                width = size.width_frac,
-                height = size.height_frac,
-            })
-        else
-            opts.width = size.width_frac
-            opts.height = size.height_frac
-        end
-        telescope.buffers(opts)
-        return
-    end
-
-    local ok_fzf, fzf = pcall(require, "fzf-lua")
-    if ok_fzf and fzf and type(fzf.buffers) == "function" then
-        fzf.buffers({
-            previewer = false,
-            winopts = {
-                width = size.width_frac,
-                height = size.height_frac,
-                preview = {
-                    hidden = "hidden",
-                },
-            },
-        })
-        return
-    end
-
-    vim.notify("quickbuf: no fuzzy buffer picker found", vim.log.levels.WARN)
-end
-
-local function close()
-    if M.help_win and vim.api.nvim_win_is_valid(M.help_win) then
-        vim.api.nvim_win_close(M.help_win, true)
-    end
-    M.help_win = nil
-    M.help_buf = nil
-
-    if M.win and vim.api.nvim_win_is_valid(M.win) then
-        vim.api.nvim_win_close(M.win, true)
-    end
-    M.win = nil
-    M.buf = nil
-end
-
-local function open_help_popup(lines)
-    if M.help_win and vim.api.nvim_win_is_valid(M.help_win) then
-        vim.api.nvim_win_close(M.help_win, true)
-    end
-
-    local horizontal_padding = 2
-    local vertical_padding = 1
-
-    local max_line_width = 0
-    for _, line in ipairs(lines) do
-        local width = str_width(line)
-        if width > max_line_width then
-            max_line_width = width
-        end
-    end
-
-    local width = math.min(math.max(max_line_width + horizontal_padding * 2, 52), math.max(1, vim.o.columns - 8))
-    local height = math.min(#lines + vertical_padding * 2, math.max(1, vim.o.lines - 8))
-
-    local padded_lines = {}
-    for _ = 1, vertical_padding do
-        padded_lines[#padded_lines + 1] = ""
-    end
-    for _, line in ipairs(lines) do
-        padded_lines[#padded_lines + 1] = string.rep(" ", horizontal_padding) .. line
-    end
-    for _ = 1, vertical_padding do
-        padded_lines[#padded_lines + 1] = ""
-    end
-
-    M.help_buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[M.help_buf].bufhidden = "wipe"
-    vim.bo[M.help_buf].filetype = "quickbufhelp"
-    vim.bo[M.help_buf].modifiable = true
-    vim.api.nvim_buf_set_lines(M.help_buf, 0, -1, false, padded_lines)
-    vim.bo[M.help_buf].modifiable = false
-
-    local row = math.max(0, math.floor((vim.o.lines - height) / 2 - 1))
-    local col = math.max(0, math.floor((vim.o.columns - width) / 2))
-
-    M.help_win = vim.api.nvim_open_win(M.help_buf, true, {
-        relative = "editor",
-        row = row,
-        col = col,
-        width = width,
-        height = height,
-        border = "rounded",
-        style = "minimal",
-        noautocmd = true,
-        focusable = true,
-        zindex = 250,
-        title = " QuickBuf Help ",
-        title_pos = "center",
-    })
-
-    vim.wo[M.help_win].number = false
-    vim.wo[M.help_win].relativenumber = false
-    vim.wo[M.help_win].cursorline = false
-    vim.wo[M.help_win].signcolumn = "no"
-    vim.wo[M.help_win].wrap = false
-    vim.wo[M.help_win].winhighlight =
-    "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename"
-
-    vim.keymap.set("n", "q", function()
-        if M.help_win and vim.api.nvim_win_is_valid(M.help_win) then
-            vim.api.nvim_win_close(M.help_win, true)
-        end
-        M.help_win = nil
-        M.help_buf = nil
-    end, { buffer = M.help_buf, nowait = true, silent = true })
-    vim.keymap.set("n", "<Esc>", function()
-        if M.help_win and vim.api.nvim_win_is_valid(M.help_win) then
-            vim.api.nvim_win_close(M.help_win, true)
-        end
-        M.help_win = nil
-        M.help_buf = nil
-    end, { buffer = M.help_buf, nowait = true, silent = true })
-end
-
-local function format_line(item, label)
-    local segments = {}
-    local highlights = {}
-    local byte_col = 0
-
-    local function add(text, hl)
-        if text == "" then
-            return
-        end
-        segments[#segments + 1] = text
-        if hl then
-            highlights[#highlights + 1] = {
-                hl = hl,
-                start_col = byte_col,
-                end_col = byte_col + #text,
-            }
-        end
-        byte_col = byte_col + #text
-    end
-
-    local pin_mark = item.pinned and " P " or "   "
-    add(pin_mark, item.pinned and "QuickBufPinned" or "QuickBufMuted")
-
-    local flags = item.flags or ""
-    if flags ~= "" then
-        add(pad_right(flags, 3), "QuickBufFlags")
-    else
-        add("   ", "QuickBufMuted")
-    end
-
-    add(" ")
-
-    local icon, icon_hl = icon_for_item(item)
-    if icon ~= "" then
-        add(icon, icon_hl)
-        add(" ")
-    end
-
-    add(item.filename, "QuickBufFilename")
-
-    add(" ")
-    local label_cell = pad_right(label ~= "" and label or " ", 2)
-    add(label_cell, label ~= "" and "QuickBufLabel" or "QuickBufMuted")
-
-    if item.dirname ~= "" then
-        add(" ")
-        add(item.dirname, "QuickBufPath")
-    end
-
-    return table.concat(segments), highlights
-end
-
-local function apply_highlights(all_highlights)
-    vim.api.nvim_buf_clear_namespace(M.buf, ns, 0, -1)
-    for line_idx, line_highlights in ipairs(all_highlights) do
-        for _, part in ipairs(line_highlights) do
-            vim.api.nvim_buf_set_extmark(M.buf, ns, line_idx - 1, part.start_col, {
-                end_row = line_idx - 1,
-                end_col = part.end_col,
-                hl_group = part.hl,
-            })
-        end
-    end
-end
-
-local function render_lines(lines, all_highlights)
-    vim.bo[M.buf].modifiable = true
-    vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, lines)
-    apply_highlights(all_highlights)
-    vim.bo[M.buf].modifiable = false
-end
-
-local function resolve_size(value, total, fallback)
-    if type(value) ~= "number" then
-        return fallback
-    end
-    if value > 0 and value <= 1 then
-        return math.max(1, math.floor(total * value))
-    end
-    if value > 1 then
-        return math.floor(value)
-    end
-    return fallback
-end
-
 local function is_single_key(key)
     return type(key) == "string" and #key == 1
 end
 
-effective_charset = function()
+local function effective_charset()
     local reserved = {
         q = true,
         g = true,
@@ -516,209 +74,41 @@ effective_charset = function()
     return out
 end
 
-local function open_window(lines, all_highlights, meta)
-    close()
+local function max_visible_items(total_items, label_limit)
+    if total_items <= 0 or label_limit <= 0 then
+        return 0
+    end
 
-    local cfg = config.values.window
-    local max_columns = math.max(1, vim.o.columns - 2)
     local max_rows = math.max(1, vim.o.lines - 4)
-    local min_width = resolve_size(cfg.min_width, vim.o.columns, 1)
-    local max_width = resolve_size(cfg.max_width, vim.o.columns, max_columns)
-    min_width = math.max(1, math.min(min_width, max_columns))
-    max_width = math.max(1, math.min(max_width, max_columns))
-    if min_width > max_width then
-        min_width, max_width = max_width, min_width
-    end
-
-    local max_line = 0
-    for _, line in ipairs(lines) do
-        local width = str_width(line)
-        if width > max_line then
-            max_line = width
-        end
-    end
-
-    local content_width = math.max(min_width, math.min(max_width, max_line + cfg.padding * 2))
-    local width = resolve_size(cfg.width, vim.o.columns, content_width)
-    width = math.max(min_width, math.min(max_width, width))
-    width = math.min(width, max_columns)
-
-    local content_height = #lines
-    local height = resolve_size(cfg.height, vim.o.lines - 2, content_height)
-    height = math.max(content_height, height)
-    height = math.min(height, max_rows)
-
-    M.buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[M.buf].bufhidden = "wipe"
-    vim.bo[M.buf].filetype = "quickbuf"
-    render_lines(lines, all_highlights)
-
-    local footer = meta and meta.footer or " ? [help]  q [quit] "
-
-    M.win = vim.api.nvim_open_win(M.buf, true, {
-        relative = "editor",
-        row = math.floor((vim.o.lines - height) / 2 - 1),
-        col = math.floor((vim.o.columns - width) / 2),
-        width = width,
-        height = height,
-        border = cfg.border,
-        style = "minimal",
-        noautocmd = true,
-        title = string.format(" %s (%d) ", meta and meta.title or "QuickBuf", meta and meta.total_count or #lines),
-        title_pos = "center",
-        footer = footer,
-        footer_pos = "center",
-    })
-
-    vim.wo[M.win].number = false
-    vim.wo[M.win].relativenumber = false
-    vim.wo[M.win].cursorline = true
-    vim.wo[M.win].winhighlight =
-    "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:QuickBufFilename,CursorLine:QuickBufCursorLine"
-    vim.wo[M.win].signcolumn = "no"
-    vim.wo[M.win].wrap = false
-    vim.api.nvim_win_set_cursor(M.win, { 1, 0 })
-end
-
-local function build_lines(items, labels_for_items, hidden_count)
     local vertical_padding =
         math.max(0, math.floor((config.values.window and config.values.window.vertical_padding) or 0))
-    local lines = {}
-    local all_highlights = {}
+    local cap = math.min(total_items, label_limit)
 
-    for _ = 1, vertical_padding do
-        lines[#lines + 1] = ""
-        all_highlights[#all_highlights + 1] = {}
+    for shown = cap, 1, -1 do
+        local hidden_count = total_items - shown
+        local line_count = shown + (vertical_padding * 2) + (hidden_count > 0 and 1 or 0)
+        if line_count <= max_rows then
+            return shown
+        end
     end
 
-    for i, item in ipairs(items) do
-        local line, line_highlights = format_line(item, labels_for_items[i])
-        lines[#lines + 1] = line
-        all_highlights[#all_highlights + 1] = line_highlights
-    end
-    if hidden_count and hidden_count > 0 then
-        lines[#lines + 1] = string.format(" ..  +%d more", hidden_count)
-        all_highlights[#all_highlights + 1] = {
-            {
-                hl = "QuickBufMuted",
-                start_col = 0,
-                end_col = #lines[#lines],
-            },
-        }
-    end
-
-    for _ = 1, vertical_padding do
-        lines[#lines + 1] = ""
-        all_highlights[#all_highlights + 1] = {}
-    end
-
-    return lines, all_highlights, vertical_padding
+    return 1
 end
 
-local function delete_buffers(bufnrs, force)
-    local deleted = 0
-    local failed = {}
+local function fuzzy_height_fallback()
+    local items = rank.candidates({ include_special = config.values.include_special })
+    local charset = effective_charset()
+    local shown_count = max_visible_items(#items, #charset)
+    local hidden_count = math.max(0, #items - shown_count)
+    local vertical_padding =
+        math.max(0, math.floor((config.values.window and config.values.window.vertical_padding) or 0))
 
-    local function buffer_display_name(bufnr)
-        local name = vim.api.nvim_buf_get_name(bufnr)
-        if name == "" then
-            return string.format("[No Name] (#%d)", bufnr)
-        end
-        return vim.fn.fnamemodify(name, ":~:.")
+    local content_height = shown_count + (vertical_padding * 2)
+    if hidden_count > 0 then
+        content_height = content_height + 1
     end
 
-    for _, bufnr in ipairs(bufnrs) do
-        if vim.api.nvim_buf_is_valid(bufnr) then
-            if not force and vim.bo[bufnr].modified then
-                failed[#failed + 1] = {
-                    name = buffer_display_name(bufnr),
-                    reason = "modified",
-                }
-                goto continue
-            end
-
-            local ok, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = force == true })
-            if ok then
-                state.unpin(bufnr)
-                deleted = deleted + 1
-            else
-                failed[#failed + 1] = {
-                    name = buffer_display_name(bufnr),
-                    reason = tostring(err):gsub("\n.*$", ""),
-                }
-            end
-        end
-
-        ::continue::
-    end
-
-    return deleted, failed
-end
-
-local function notify_delete_failures(prefix, deleted, failed)
-    if #failed == 0 then
-        return
-    end
-
-    local max_items = 8
-    local lines = {
-        string.format("quickbuf: %s %d, failed %d", prefix, deleted, #failed),
-    }
-    for i = 1, math.min(#failed, max_items) do
-        local item = failed[i]
-        if item.reason and item.reason ~= "" then
-            lines[#lines + 1] = string.format("- %s (%s)", item.name, item.reason)
-        else
-            lines[#lines + 1] = string.format("- %s", item.name)
-        end
-    end
-
-    local extra = #failed - math.min(#failed, max_items)
-    if extra > 0 then
-        lines[#lines + 1] = string.format("- ... and %d more", extra)
-    end
-
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN)
-end
-
-local function write_buffers(bufnrs)
-    local written = 0
-    local failed = 0
-
-    for _, bufnr in ipairs(bufnrs) do
-        if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == "" and vim.bo[bufnr].modified then
-            local ok = pcall(vim.api.nvim_buf_call, bufnr, function()
-                vim.cmd("silent write")
-            end)
-            if ok then
-                written = written + 1
-            else
-                failed = failed + 1
-            end
-        end
-    end
-
-    return written, failed
-end
-
-local function reload_buffers(bufnrs)
-    local reloaded = 0
-    local failed = 0
-
-    for _, bufnr in ipairs(bufnrs) do
-        if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == "" and vim.bo[bufnr].modified then
-            local ok = pcall(vim.api.nvim_buf_call, bufnr, function()
-                vim.cmd("silent edit!")
-            end)
-            if ok then
-                reloaded = reloaded + 1
-            else
-                failed = failed + 1
-            end
-        end
-    end
-
-    return reloaded, failed
+    return math.max(1, content_height)
 end
 
 local function apply_keymaps(items, labels_for_items, ctx)
@@ -728,7 +118,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
         local down = picker_keys.move_down_key or "j"
         local select = picker_keys.select_key or "<CR>"
         local toggle_pin = picker_keys.toggle_pin_key or "T"
-        local fuzzy = config.values.fuzzy_key or "/"
+        local fuzzy_key = config.values.fuzzy_key or "/"
         local alternate = config.values.alternate_key or "<Tab>"
 
         local lines = {
@@ -749,13 +139,13 @@ local function apply_keymaps(items, labels_for_items, ctx)
             string.format("- %s toggle pinned/unpinned", toggle_pin),
             "",
             "[Other]",
-            string.format("- %s fuzzy fallback", fuzzy),
+            string.format("- %s fuzzy fallback", fuzzy_key),
             "- q or <Esc> close",
             "- ? this help",
         }
 
         if picker_keys.toggle_view_key and picker_keys.toggle_view_key ~= "" then
-            table.insert(lines, 16, string.format("- %s toggle all/pinned view", picker_keys.toggle_view_key))
+            table.insert(lines, 16, string.format("- %s toggle pinned view", picker_keys.toggle_view_key))
         end
 
         return lines
@@ -764,22 +154,23 @@ local function apply_keymaps(items, labels_for_items, ctx)
     local function refresh_after_action(cursor_row)
         local next_opts = vim.tbl_extend("force", {}, ctx.open_opts or {})
         next_opts.cursor_row = cursor_row
-        close()
+        ui.close()
         M.open(next_opts)
     end
 
     local function pick(bufnr)
-        close()
+        ui.close()
         if vim.api.nvim_buf_is_valid(bufnr) then
             vim.api.nvim_set_current_buf(bufnr)
         end
     end
 
     local function get_selected_index()
-        if not M.win or not vim.api.nvim_win_is_valid(M.win) then
+        local win = ui.get_win()
+        if not win or not vim.api.nvim_win_is_valid(win) then
             return nil
         end
-        local row = vim.api.nvim_win_get_cursor(M.win)[1] - (ctx.line_offset or 0)
+        local row = vim.api.nvim_win_get_cursor(win)[1] - (ctx.line_offset or 0)
         if row < 1 or row > #items then
             return nil
         end
@@ -796,13 +187,13 @@ local function apply_keymaps(items, labels_for_items, ctx)
             end
         end
 
-        local lines, all_highlights, line_offset = build_lines(items, labels_for_items, ctx.hidden_count or 0)
+        local lines, all_highlights, line_offset = ui.build_lines(items, labels_for_items, ctx.hidden_count or 0)
         ctx.line_offset = line_offset
-        render_lines(lines, all_highlights)
+        ui.render(lines, all_highlights)
 
-        if M.win and vim.api.nvim_win_is_valid(M.win) and #items > 0 then
+        if ui.is_win_valid() and #items > 0 then
             cursor_row = math.max(1, math.min(cursor_row, #items))
-            vim.api.nvim_win_set_cursor(M.win, { line_offset + cursor_row, 0 })
+            ui.set_cursor(line_offset + cursor_row, 0)
         end
     end
 
@@ -814,7 +205,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
         elseif next_idx > #items then
             next_idx = #items
         end
-        vim.api.nvim_win_set_cursor(M.win, { (ctx.line_offset or 0) + next_idx, 0 })
+        ui.set_cursor((ctx.line_offset or 0) + next_idx, 0)
     end
 
     local function pick_current()
@@ -921,9 +312,9 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return
         end
 
-        local deleted, failed = delete_buffers(targets, force)
+        local deleted, failed = actions.delete_buffers(targets, force)
         refresh_after_action(preferred_row)
-        notify_delete_failures("deleted", deleted, failed)
+        actions.notify_delete_failures("deleted", deleted, failed)
     end
 
     local function clear_unpinned_buffers(force)
@@ -939,10 +330,10 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return
         end
 
-        local deleted, failed = delete_buffers(targets, force)
+        local deleted, failed = actions.delete_buffers(targets, force)
         local idx = get_selected_index() or 1
         refresh_after_action(idx)
-        notify_delete_failures("cleared", deleted, failed)
+        actions.notify_delete_failures("cleared", deleted, failed)
     end
 
     local function write_selected_or_current(prefer_visual)
@@ -957,7 +348,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return
         end
 
-        local written, failed = write_buffers(targets)
+        local written, failed = actions.write_buffers(targets)
         if failed > 0 then
             vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
         end
@@ -981,7 +372,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             end
         end
 
-        local written, failed = write_buffers(targets)
+        local written, failed = actions.write_buffers(targets)
         if failed > 0 then
             vim.notify(string.format("quickbuf: written %d, failed %d", written, failed), vim.log.levels.WARN)
         end
@@ -1002,7 +393,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return
         end
 
-        local reloaded, failed = reload_buffers(targets)
+        local reloaded, failed = actions.reload_buffers(targets)
         if failed > 0 then
             vim.notify(string.format("quickbuf: reloaded %d, failed %d", reloaded, failed), vim.log.levels.WARN)
         end
@@ -1027,7 +418,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
             end
         end
 
-        local reloaded, failed = reload_buffers(targets)
+        local reloaded, failed = actions.reload_buffers(targets)
         if failed > 0 then
             vim.notify(string.format("quickbuf: reloaded %d, failed %d", reloaded, failed), vim.log.levels.WARN)
         end
@@ -1043,66 +434,69 @@ local function apply_keymaps(items, labels_for_items, ctx)
         end
 
         local swallow = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`-=[]\\;',./"
+        local map_buf = ui.get_buf()
         for i = 1, #swallow do
             local key = swallow:sub(i, i)
-            vim.keymap.set("n", key, "<Nop>", { buffer = M.buf, silent = true })
+            vim.keymap.set("n", key, "<Nop>", { buffer = map_buf, silent = true })
         end
     end
 
     swallow_all_normal_keys()
 
     local picker_keys = config.values.picker or {}
+    local map_buf = ui.get_buf()
 
-    vim.keymap.set("n", "<Esc>", close, { buffer = M.buf, nowait = true, silent = true })
-    vim.keymap.set("n", "q", close, { buffer = M.buf, nowait = true, silent = true })
+    vim.keymap.set("n", "<Esc>", ui.close, { buffer = map_buf, nowait = true, silent = true })
+    vim.keymap.set("n", "q", ui.close, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", FIRST_ITEM_KEY, function()
-        vim.api.nvim_win_set_cursor(M.win, { (ctx.line_offset or 0) + 1, 0 })
-    end, { buffer = M.buf, nowait = true, silent = true })
+        ui.set_cursor((ctx.line_offset or 0) + 1, 0)
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", "?", function()
-        open_help_popup(help_lines())
-    end, { buffer = M.buf, nowait = true, silent = true })
+        ui.open_help_popup(help_lines())
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", LAST_ITEM_KEY, function()
-        vim.api.nvim_win_set_cursor(M.win, { (ctx.line_offset or 0) + #items, 0 })
-    end, { buffer = M.buf, nowait = true, silent = true })
-    vim.keymap.set("n", VISUAL_SELECT_KEY, "V", { buffer = M.buf, nowait = true, silent = true })
+        ui.set_cursor((ctx.line_offset or 0) + #items, 0)
+    end, { buffer = map_buf, nowait = true, silent = true })
+    vim.keymap.set("n", VISUAL_SELECT_KEY, "V", { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", DELETE_KEY .. DELETE_KEY, function()
         delete_selected_or_current(false, false)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("x", DELETE_KEY, function()
         delete_selected_or_current(true, false)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", FORCE_DELETE_KEY, function()
         delete_selected_or_current(false, true)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("x", FORCE_DELETE_KEY, function()
         delete_selected_or_current(true, true)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", CLEAR_UNPINNED_KEY, function()
         clear_unpinned_buffers(false)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", FORCE_CLEAR_UNPINNED_KEY, function()
         clear_unpinned_buffers(true)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", WRITE_KEY, function()
         write_selected_or_current(false)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("x", WRITE_KEY, function()
         write_selected_or_current(true)
-    end, { buffer = M.buf, nowait = true, silent = true })
-    vim.keymap.set("n", WRITE_ALL_KEY, write_all_listed_buffers, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
+    vim.keymap.set("n", WRITE_ALL_KEY, write_all_listed_buffers, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("n", RELOAD_KEY, function()
         reload_selected_or_current(false)
-    end, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
     vim.keymap.set("x", RELOAD_KEY, function()
         reload_selected_or_current(true)
-    end, { buffer = M.buf, nowait = true, silent = true })
-    vim.keymap.set("n", RELOAD_ALL_KEY, reload_all_listed_buffers, { buffer = M.buf, nowait = true, silent = true })
+    end, { buffer = map_buf, nowait = true, silent = true })
+    vim.keymap.set("n", RELOAD_ALL_KEY, reload_all_listed_buffers, { buffer = map_buf, nowait = true, silent = true })
 
     if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
         vim.keymap.set("n", config.values.fuzzy_key, function()
             local size_hint = {}
-            if M.win and vim.api.nvim_win_is_valid(M.win) then
-                local win_cfg = vim.api.nvim_win_get_config(M.win)
+            local win = ui.get_win()
+            if win and vim.api.nvim_win_is_valid(win) then
+                local win_cfg = vim.api.nvim_win_get_config(win)
                 if type(win_cfg.width) == "number" and win_cfg.width > 0 then
                     size_hint.width_cols = win_cfg.width
                 end
@@ -1110,9 +504,10 @@ local function apply_keymaps(items, labels_for_items, ctx)
                     size_hint.height_rows = win_cfg.height
                 end
             end
-            close()
-            open_fuzzy_buffers(size_hint)
-        end, { buffer = M.buf, nowait = true, silent = true })
+            size_hint.fallback_height = fuzzy_height_fallback()
+            ui.close()
+            fuzzy.open(size_hint)
+        end, { buffer = map_buf, nowait = true, silent = true })
     end
 
     if config.values.alternate_key and config.values.alternate_key ~= "" then
@@ -1128,39 +523,39 @@ local function apply_keymaps(items, labels_for_items, ctx)
             else
                 vim.notify("quickbuf: no alternate buffer", vim.log.levels.INFO)
             end
-        end, { buffer = M.buf, nowait = true, silent = true })
+        end, { buffer = map_buf, nowait = true, silent = true })
     end
 
     if picker_keys.move_up_key and picker_keys.move_up_key ~= "" then
         vim.keymap.set("n", picker_keys.move_up_key, function()
             move_cursor(-1)
-        end, { buffer = M.buf, nowait = true, silent = true })
+        end, { buffer = map_buf, nowait = true, silent = true })
     end
     if picker_keys.move_down_key and picker_keys.move_down_key ~= "" then
         vim.keymap.set("n", picker_keys.move_down_key, function()
             move_cursor(1)
-        end, { buffer = M.buf, nowait = true, silent = true })
+        end, { buffer = map_buf, nowait = true, silent = true })
     end
     if picker_keys.select_key and picker_keys.select_key ~= "" then
-        vim.keymap.set("n", picker_keys.select_key, pick_current, { buffer = M.buf, nowait = true, silent = true })
+        vim.keymap.set("n", picker_keys.select_key, pick_current, { buffer = map_buf, nowait = true, silent = true })
     end
     if picker_keys.toggle_pin_key and picker_keys.toggle_pin_key ~= "" then
         vim.keymap.set(
             "n",
             picker_keys.toggle_pin_key,
             toggle_current_pin,
-            { buffer = M.buf, nowait = true, silent = true }
+            { buffer = map_buf, nowait = true, silent = true }
         )
         vim.keymap.set("x", picker_keys.toggle_pin_key, function()
             toggle_selected_or_current_pin(true)
-        end, { buffer = M.buf, nowait = true, silent = true })
+        end, { buffer = map_buf, nowait = true, silent = true })
     end
     if picker_keys.toggle_view_key and picker_keys.toggle_view_key ~= "" then
         vim.keymap.set(
             "n",
             picker_keys.toggle_view_key,
             toggle_picker_view,
-            { buffer = M.buf, nowait = true, silent = true }
+            { buffer = map_buf, nowait = true, silent = true }
         )
     end
 
@@ -1169,7 +564,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
         if label and label ~= "" then
             vim.keymap.set("n", label, function()
                 pick(item.bufnr)
-            end, { buffer = M.buf, nowait = true, silent = true })
+            end, { buffer = map_buf, nowait = true, silent = true })
         end
     end
 end
@@ -1183,6 +578,7 @@ function M.open(opts)
     else
         pinned_only = state.get_picker_mode() == "pinned"
     end
+
     local source_bufnr = opts.source_bufnr or vim.api.nvim_get_current_buf()
     local alternate_bufnr = opts.alternate_bufnr
     if alternate_bufnr == nil then
@@ -1272,7 +668,7 @@ function M.open(opts)
     end
 
     local hidden_count = #items - #shown
-    local lines, all_highlights, line_offset = build_lines(shown, labels_for_items, hidden_count)
+    local lines, all_highlights, line_offset = ui.build_lines(shown, labels_for_items, hidden_count)
 
     local footer_parts = {
         "? [help]",
@@ -1287,11 +683,12 @@ function M.open(opts)
         footer_parts[#footer_parts + 1] = string.format("%s [fuzzy]", config.values.fuzzy_key)
     end
 
-    open_window(lines, all_highlights, {
+    ui.open_picker(lines, all_highlights, {
         title = pinned_only and "QuickBuf Pinned" or "QuickBuf",
         total_count = #items,
         footer = " " .. table.concat(footer_parts, "  ") .. " ",
     })
+
     apply_keymaps(shown, labels_for_items, {
         source_bufnr = source_bufnr,
         alternate_bufnr = alternate_bufnr,
@@ -1302,10 +699,10 @@ function M.open(opts)
         line_offset = line_offset,
     })
 
-    if M.win and vim.api.nvim_win_is_valid(M.win) then
+    if ui.is_win_valid() then
         local target_row = opts.cursor_row or 1
         target_row = math.max(1, math.min(target_row, #shown))
-        vim.api.nvim_win_set_cursor(M.win, { line_offset + target_row, 0 })
+        ui.set_cursor(line_offset + target_row, 0)
     end
 end
 

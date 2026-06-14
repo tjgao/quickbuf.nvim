@@ -17,10 +17,10 @@ M.defaults = {
     },
     show_icons = true,
     highlights = {
-        label = { fg = "#ff8800", bold = true },
+        label = { link = "DiagnosticWarn", bold = true },
         pinned = { link = "DiagnosticOk" },
         flags = { link = "Comment" },
-        alternate = { link = "DiagnosticWarn" },
+        alternate = { fg = "#ff8800", bold = true },
         filename = { link = "Normal" },
         path = { link = "Comment" },
         muted = { link = "Comment" },

@@ -7,6 +7,15 @@ local M = {}
 local augroup = vim.api.nvim_create_augroup("QuickBufState", { clear = true })
 local did_setup = false
 
+local function has_style_overrides(hl)
+    for k, _ in pairs(hl) do
+        if k ~= "link" and k ~= "default" then
+            return true
+        end
+    end
+    return false
+end
+
 local function setup_highlights()
     local groups = {
         label = "QuickBufLabel",
@@ -23,6 +32,13 @@ local function setup_highlights()
         local spec = config.values.highlights and config.values.highlights[key]
         if spec ~= false then
             local hl = vim.deepcopy(spec or {})
+            if hl.link and has_style_overrides(hl) then
+                local ok, base = pcall(vim.api.nvim_get_hl, 0, { name = hl.link, link = false })
+                if ok and type(base) == "table" then
+                    hl.link = nil
+                    hl = vim.tbl_extend("force", base, hl)
+                end
+            end
             if hl.default == nil then
                 hl.default = true
             end
