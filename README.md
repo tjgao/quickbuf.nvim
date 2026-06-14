@@ -28,10 +28,10 @@ With `lazy.nvim`:
 
 ```lua
 {
-  "tjgao/quickbuf.nvim",
-  config = function()
-    require("quickbuf").setup()
-  end,
+    "tjgao/quickbuf.nvim",
+    config = function()
+        require("quickbuf").setup()
+    end,
 }
 ```
 
@@ -45,10 +45,10 @@ With `lazy.nvim`:
 ## Suggested keymaps
 
 ```lua
-vim.keymap.set("n", "<leader>bb", "<cmd>QuickBuf<cr>", { desc = "QuickBuf" })
-vim.keymap.set("n", "<leader>bp", "<cmd>QuickBufPinToggle<cr>", { desc = "Pin toggle" })
-vim.keymap.set("n", "[b", "<cmd>QuickBufPrevPinned<cr>", { desc = "Prev pinned" })
-vim.keymap.set("n", "]b", "<cmd>QuickBufNextPinned<cr>", { desc = "Next pinned" })
+vim.keymap.set("n", "<Tab>", "<cmd>QuickBuf<CR>", { desc = "QuickBuf" })
+vim.keymap.set("n", "<leader>qt", "<cmd>QuickBufPinToggle<CR>", { desc = "Pin toggle" })
+vim.keymap.set("n", "<S-h>", "<cmd>QuickBufPrevPinned<CR>", { desc = "Prev pinned buffer" })
+vim.keymap.set("n", "<S-l>", "<cmd>QuickBufNextPinned<CR>", { desc = "Next pinned buffer" })
 ```
 
 ## Config
@@ -57,39 +57,39 @@ Defaults:
 
 ```lua
 require("quickbuf").setup({
-  include_special = false,
-  auto_jump_single = true,
-  isolate_keymaps = true,
-  fuzzy_key = "/",
-  alternate_key = "<Tab>",
-  alternate_key_display = "",
-  alternate_without_label = true,
-  picker = {
-    move_up_key = "k",
-    move_down_key = "j",
-    select_key = "<CR>",
-    toggle_pin_key = "T",
-  },
-  show_icons = true,
-  highlights = {
-    label = { fg = "#ff8800", bold = true },
-    pinned = { link = "DiagnosticOk" },
-    flags = { link = "Comment" },
-    alternate = { link = "DiagnosticWarn" },
-    filename = { link = "Normal" },
-    path = { link = "Comment" },
-    muted = { link = "Comment" },
-    cursorline = { link = "Visual" },
-  },
-  window = {
-    border = "rounded",
-    width = nil,
-    height = nil,
-    max_width = 80,
-    min_width = 36,
-    padding = 2,
-    vertical_padding = 1,
-  },
+    include_special = false,
+    auto_jump_single = false,
+    isolate_keymaps = true,
+    fuzzy_key = "/",
+    alternate_key = "<Tab>",
+    alternate_key_display = "",
+    alternate_without_label = true,
+    picker = {
+        move_up_key = "k",
+        move_down_key = "j",
+        select_key = "<CR>",
+        toggle_pin_key = "T",
+    },
+    show_icons = true,
+    highlights = {
+        label = { link = "DiagnosticWarn", bold = true },
+        pinned = { link = "DiagnosticOk" },
+        flags = { link = "Comment" },
+        alternate = { fg = "#ff8800", bold = true },
+        filename = { link = "Normal" },
+        path = { link = "Comment" },
+        muted = { link = "Comment" },
+        cursorline = { link = "Visual" },
+    },
+    window = {
+        border = "rounded",
+        width = nil,
+        height = nil,
+        max_width = 80,
+        min_width = 36,
+        padding = 2,
+        vertical_padding = 1,
+    },
 })
 ```
 
@@ -111,10 +111,10 @@ Example highlight override:
 
 ```lua
 require("quickbuf").setup({
-  highlights = {
-    label = { fg = "#ff5f00", bold = true },
-    path = { fg = "#6c7086", italic = true },
-  },
+    highlights = {
+        label = { fg = "#ff5f00", bold = true },
+        path = { fg = "#6c7086", italic = true },
+    },
 })
 ```
 
@@ -122,11 +122,11 @@ Example percentage sizing:
 
 ```lua
 require("quickbuf").setup({
-  window = {
-    width = 0.6,
-    height = 0.5,
-    min_width = 0.4,
-    max_width = 0.8,
-  },
+    window = {
+        width = 0.6,
+        height = 0.5,
+        min_width = 0.4,
+        max_width = 0.8,
+    },
 })
 ```
