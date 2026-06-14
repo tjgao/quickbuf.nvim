@@ -31,7 +31,7 @@ Early MVP.
 ## Demo
 
 <!-- Demo source https://github.com/tjgao/assets/raw/refs/heads/main/videos/QuickBuf-demo.mp4-->
-https://github.com/user-attachments/assets/aec51249-c716-44ad-a0ca-e62fb11b6cc0
+https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 
 ## Demo Walkthrough
 
