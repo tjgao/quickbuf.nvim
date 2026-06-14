@@ -2,7 +2,7 @@ local M = {}
 
 M.defaults = {
     include_special = false,
-    auto_jump_single = true,
+    auto_jump_single = false,
     isolate_keymaps = true,
     fuzzy_key = "/",
     alternate_key = "<Tab>",
@@ -13,7 +13,6 @@ M.defaults = {
         move_down_key = "j",
         select_key = "<CR>",
         toggle_pin_key = "T",
-        toggle_view_key = "p",
     },
     show_icons = true,
     highlights = {

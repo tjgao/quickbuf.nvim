@@ -17,9 +17,9 @@ Early MVP.
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to fall back to fuzzy buffers (Snacks/Telescope/fzf-lua)
-- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `p` toggle all/pinned view, `<CR>` open current
+- Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `<CR>` open current
 - `?` opens an in-picker help popup with all actions
-- Pin toggle and pinned-view picker (pinned plus alternate)
+- Pin toggle and next/previous pinned buffer cycling
 - Next/previous pinned buffer cycling
 
 ## Install
@@ -37,9 +37,7 @@ With `lazy.nvim`:
 
 ## Commands
 
-- `:QuickBuf` open quick picker (uses current session view mode)
-- `:QuickBufAll` open picker with all buffers
-- `:QuickBufPinned` open picker with pinned buffers plus alternate (`#`)
+- `:QuickBuf` open quick picker
 - `:QuickBufPinToggle` pin/unpin current buffer
 - `:QuickBufNextPinned` go to next pinned buffer
 - `:QuickBufPrevPinned` go to previous pinned buffer
@@ -71,7 +69,6 @@ require("quickbuf").setup({
     move_down_key = "j",
     select_key = "<CR>",
     toggle_pin_key = "T",
-    toggle_view_key = "p",
   },
   show_icons = true,
   highlights = {
@@ -105,7 +102,6 @@ require("quickbuf").setup({
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
 - `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
-- Picker view mode (`all`/`pinned`) is session-persistent and can be toggled in-picker with `picker.toggle_view_key`.
 - Override colors with `highlights = { ... }` in setup.
 - `window.width`, `window.height`, `window.min_width`, and `window.max_width` accept absolute numbers (`80`) or percentages (`0.6`).
 - `window.vertical_padding` adds blank rows above and below buffer entries.
