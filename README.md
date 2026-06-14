@@ -44,6 +44,8 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 7. Fuzzy fallback: `/` to open fuzzy picker (`auto`: Snacks/Telescope/fzf-lua, or custom backend).
 8. Cleanup unpinned buffers: `c` (safe) or `C` (force).
 
+<img width="1242" height="1476" alt="Image" src="https://github.com/user-attachments/assets/fe5b5095-dd4d-4315-9160-bc0426844cc9" />
+
 ## Install
 
 With `lazy.nvim`:
