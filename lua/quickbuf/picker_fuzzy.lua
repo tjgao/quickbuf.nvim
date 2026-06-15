@@ -28,48 +28,6 @@ local function float_window_set()
     return out
 end
 
-local function enforce_new_float_size(before_set, width, height)
-    local function apply_once()
-        local target = nil
-        local target_area = -1
-
-        for _, win in ipairs(vim.api.nvim_list_wins()) do
-            if not before_set[win] and vim.api.nvim_win_is_valid(win) then
-                local cfg = vim.api.nvim_win_get_config(win)
-                if
-                    cfg.relative
-                    and cfg.relative ~= ""
-                    and type(cfg.width) == "number"
-                    and type(cfg.height) == "number"
-                then
-                    local area = cfg.width * cfg.height
-                    if area > target_area then
-                        target = win
-                        target_area = area
-                    end
-                end
-            end
-        end
-
-        if not target then
-            return false
-        end
-
-        local cfg = vim.api.nvim_win_get_config(target)
-        cfg.width = width
-        cfg.height = height
-        pcall(vim.api.nvim_win_set_config, target, cfg)
-        return true
-    end
-
-    if apply_once() then
-        return
-    end
-
-    vim.defer_fn(apply_once, 20)
-    vim.defer_fn(apply_once, 80)
-end
-
 local function fuzzy_picker_size(opts)
     opts = opts or {}
     local cfg = config.values.window or {}
@@ -159,7 +117,6 @@ function M.open(opts)
                 snacks.picker.buffers()
             end
         end
-        enforce_new_float_size(before_float_wins, size_hint.width_cols, size_hint.height_rows)
         return true
     end
 
@@ -221,10 +178,7 @@ function M.open(opts)
     if backend == "custom" then
         local custom = config.values.fuzzy_open
         if type(custom) ~= "function" then
-            vim.notify(
-                "quickbuf: fuzzy_backend is 'custom' but fuzzy_open is not a function",
-                vim.log.levels.WARN
-            )
+            vim.notify("quickbuf: fuzzy_backend is 'custom' but fuzzy_open is not a function", vim.log.levels.WARN)
             return
         end
         local ok, err = pcall(custom, {
