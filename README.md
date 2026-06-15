@@ -48,7 +48,7 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 
 ## Install
 
-With `lazy.nvim`:
+### `lazy.nvim`
 
 ```lua
 {
@@ -57,6 +57,41 @@ With `lazy.nvim`:
         require("quickbuf").setup()
     end,
 }
+```
+
+### `packer.nvim`
+
+```lua
+require("packer").startup(function(use)
+    use({
+        "tjgao/quickbuf.nvim",
+        config = function()
+            require("quickbuf").setup()
+        end,
+    })
+end)
+```
+
+### `vim-plug`
+
+```vim
+call plug#begin("~/.vim/plugged")
+Plug "tjgao/quickbuf.nvim"
+call plug#end()
+
+lua << EOF
+require("quickbuf").setup()
+EOF
+```
+
+### `mini.deps`
+
+```lua
+local add = MiniDeps.add
+
+add({ source = "tjgao/quickbuf.nvim" })
+
+require("quickbuf").setup()
 ```
 
 ## Commands
