@@ -53,11 +53,10 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 ```lua
 {
     "tjgao/quickbuf.nvim",
-    config = function()
-        require("quickbuf").setup()
-    end,
 }
 ```
+
+No setup call is required for default behavior.
 
 ### `packer.nvim`
 
@@ -65,11 +64,24 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 require("packer").startup(function(use)
     use({
         "tjgao/quickbuf.nvim",
-        config = function()
-            require("quickbuf").setup()
-        end,
     })
 end)
+```
+
+If you want custom options, call setup in your plugin config:
+
+```lua
+require("quickbuf").setup({
+    fuzzy_backend = "telescope",
+    picker = {
+        move_up_key = "<C-k>",
+        move_down_key = "<C-j>",
+    },
+    window = {
+        width = 0.6,
+        height = 0.5,
+    },
+})
 ```
 
 ### `vim-plug`
@@ -78,11 +90,14 @@ end)
 call plug#begin("~/.vim/plugged")
 Plug "tjgao/quickbuf.nvim"
 call plug#end()
-
-lua << EOF
-require("quickbuf").setup()
-EOF
 ```
+
+" Optional customization:
+lua << EOF
+require("quickbuf").setup({
+    fuzzy_backend = "snacks",
+})
+EOF
 
 ### `mini.deps`
 
@@ -91,7 +106,10 @@ local add = MiniDeps.add
 
 add({ source = "tjgao/quickbuf.nvim" })
 
-require("quickbuf").setup()
+-- Optional customization:
+require("quickbuf").setup({
+    fuzzy_backend = "fzf",
+})
 ```
 
 ## Commands
