@@ -90,7 +90,6 @@ require("quickbuf").setup({
 call plug#begin("~/.vim/plugged")
 Plug "tjgao/quickbuf.nvim"
 call plug#end()
-```
 
 " Optional customization:
 lua << EOF
@@ -98,6 +97,7 @@ require("quickbuf").setup({
     fuzzy_backend = "snacks",
 })
 EOF
+```
 
 ### `mini.deps`
 
