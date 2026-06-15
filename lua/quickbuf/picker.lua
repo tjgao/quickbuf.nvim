@@ -438,11 +438,34 @@ local function apply_keymaps(items, labels_for_items, ctx)
             return
         end
 
-        local swallow = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`-=[]\\;',./"
         local map_buf = ui.get_buf()
+        local swallow = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`-=[]\\;',./"
         for i = 1, #swallow do
-            local key = swallow:sub(i, i)
-            vim.keymap.set("n", key, "<Nop>", { buffer = map_buf, silent = true })
+            vim.keymap.set("n", swallow:sub(i, i), "<Nop>", { buffer = map_buf, nowait = true, silent = true })
+        end
+
+        for code = string.byte("a"), string.byte("z") do
+            local ch = string.char(code)
+            vim.keymap.set("n", "<C-" .. ch .. ">", "<Nop>", { buffer = map_buf, nowait = true, silent = true })
+        end
+
+        local special_keys = {
+            "<Tab>",
+            "<S-Tab>",
+            "<CR>",
+            "<BS>",
+            "<Del>",
+            "<Home>",
+            "<End>",
+            "<PageUp>",
+            "<PageDown>",
+            "<Up>",
+            "<Down>",
+            "<Left>",
+            "<Right>",
+        }
+        for _, key in ipairs(special_keys) do
+            vim.keymap.set("n", key, "<Nop>", { buffer = map_buf, nowait = true, silent = true })
         end
     end
 
