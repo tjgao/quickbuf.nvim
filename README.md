@@ -151,6 +151,7 @@ require("quickbuf").setup({
         toggle_pin_key = "T",
     },
     show_icons = true,
+    pin_display = "P",
     highlights = {
         label = { link = "DiagnosticWarn", bold = true },
         pinned = { link = "DiagnosticOk" },

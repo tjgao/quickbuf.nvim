@@ -18,6 +18,7 @@ M.defaults = {
         toggle_pin_key = "T",
     },
     show_icons = true,
+    pin_display = "P",
     highlights = {
         label = { fg = "#ff8800", bold = true },
         pinned = { link = "DiagnosticOk", bold = true },
