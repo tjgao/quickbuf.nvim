@@ -23,7 +23,7 @@ Early MVP.
 - Optional icons via `nvim-web-devicons`
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
-- Press `/` in picker to open fuzzy buffers (`fuzzy_backend`: auto/Snacks/Telescope/fzf/custom)
+- Press `/` in picker to open fuzzy buffers (`fuzzy_backend`: auto/Snacks/Telescope/fzf/mini/custom)
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `s/v/t + label` open in split/vsplit/tab, `<CR>` open current (`s/v/t` mode applies to `<CR>`/`<Tab>` too)
 - `?` opens an in-picker help popup with all actions
 - Pin toggle and next/previous pinned buffer cycling
@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 4. Quick pinned switching: `:QuickBufNextPinned` and `:QuickBufPrevPinned`.
 5. Batch delete: `V` linewise visual selection, then `d` (safe) or `D` (force).
 6. `s/v/t` open modes: `s` split, `v` vsplit, `t` tab, then pick a label.
-7. Fuzzy fallback: `/` to open fuzzy picker (`auto`: Snacks/Telescope/fzf-lua, or custom backend).
+7. Fuzzy fallback: `/` to open fuzzy picker (`auto`: Snacks/Telescope/fzf-lua/mini.pick, or custom backend).
 8. Cleanup unpinned buffers: `c` (safe) or `C` (force).
 
 <img width="1242" height="1476" alt="Image" src="https://github.com/user-attachments/assets/fe5b5095-dd4d-4315-9160-bc0426844cc9" />
@@ -163,8 +163,8 @@ require("quickbuf").setup({
 - In `s/v/t` mode, `<Esc>` cancels mode first; press `<Esc>` again to close picker.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
-- `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua.
-- Set `fuzzy_backend` to `"snacks"`, `"telescope"`, or `"fzf"` to force one backend.
+- `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua -> mini.pick.
+- Set `fuzzy_backend` to `"snacks"`, `"telescope"`, `"fzf"`, or `"mini"` to force one backend.
 - Set `fuzzy_backend = "custom"` and provide `fuzzy_open = function(size) ... end` to integrate any picker.
 - `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
 - Override colors with `highlights = { ... }` in setup.
@@ -194,6 +194,14 @@ require("quickbuf").setup({
         min_width = 0.4,
         max_width = 0.8,
     },
+})
+```
+
+Example force mini.pick backend:
+
+```lua
+require("quickbuf").setup({
+    fuzzy_backend = "mini",
 })
 ```
 

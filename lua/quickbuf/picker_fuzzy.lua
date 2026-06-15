@@ -15,19 +15,6 @@ local function normalize_dimension(value, total, fallback)
     return fallback
 end
 
-local function float_window_set()
-    local out = {}
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-        if vim.api.nvim_win_is_valid(win) then
-            local cfg = vim.api.nvim_win_get_config(win)
-            if cfg.relative and cfg.relative ~= "" then
-                out[win] = true
-            end
-        end
-    end
-    return out
-end
-
 local function fuzzy_picker_size(opts)
     opts = opts or {}
     local cfg = config.values.window or {}
@@ -77,7 +64,6 @@ function M.open(opts)
             return false
         end
 
-        local before_float_wins = float_window_set()
         local ok = pcall(snacks.picker.buffers, {
             preview = false,
             layout = {
@@ -117,6 +103,23 @@ function M.open(opts)
                 snacks.picker.buffers()
             end
         end
+        return true
+    end
+
+    local function open_mini_pick(size_hint)
+        local ok_mini, mini_pick = pcall(require, "mini.pick")
+        if not (ok_mini and mini_pick and mini_pick.builtin and type(mini_pick.builtin.buffers) == "function") then
+            return false
+        end
+
+        mini_pick.builtin.buffers({
+            window = {
+                config = {
+                    width = size_hint.width_cols,
+                    height = size_hint.height_rows,
+                },
+            },
+        })
         return true
     end
 
@@ -214,6 +217,13 @@ function M.open(opts)
         return
     end
 
+    if backend == "mini" then
+        if not open_mini_pick(size) then
+            vim.notify("quickbuf: fuzzy backend 'mini' is unavailable", vim.log.levels.WARN)
+        end
+        return
+    end
+
     if backend ~= "auto" then
         vim.notify("quickbuf: unknown fuzzy_backend '" .. tostring(backend) .. "'", vim.log.levels.WARN)
         return
@@ -228,6 +238,10 @@ function M.open(opts)
     end
 
     if open_fzf_lua(size) then
+        return
+    end
+
+    if open_mini_pick(size) then
         return
     end
 
