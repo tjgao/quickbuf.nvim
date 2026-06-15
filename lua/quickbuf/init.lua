@@ -124,30 +124,39 @@ local function create_commands()
     end, { desc = "Go to previous pinned buffer" })
 end
 
-function M.setup(opts)
-    config.setup(opts)
-
-    if not did_setup then
-        setup_highlights()
-        create_commands()
-        vim.api.nvim_create_autocmd("ColorScheme", {
-            group = augroup,
-            callback = setup_highlights,
-        })
-        vim.api.nvim_create_autocmd("BufEnter", {
-            group = augroup,
-            callback = function(args)
-                state.track_buf_enter(args.buf)
-            end,
-        })
-        vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-            group = augroup,
-            callback = function(args)
-                state.unpin(args.buf)
-            end,
-        })
-        did_setup = true
+function M.setup(opts, force_load)
+    if force_load == nil then
+        force_load = true
     end
+    if not force_load and did_setup then
+        return
+    end
+
+    config.setup(opts)
+    setup_highlights()
+
+    if did_setup then
+        return
+    end
+
+    create_commands()
+    vim.api.nvim_create_autocmd("ColorScheme", {
+        group = augroup,
+        callback = setup_highlights,
+    })
+    vim.api.nvim_create_autocmd("BufEnter", {
+        group = augroup,
+        callback = function(args)
+            state.track_buf_enter(args.buf)
+        end,
+    })
+    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+        group = augroup,
+        callback = function(args)
+            state.unpin(args.buf)
+        end,
+    })
+    did_setup = true
 end
 
 return M

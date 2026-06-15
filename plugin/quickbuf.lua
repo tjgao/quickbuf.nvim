@@ -3,4 +3,4 @@ if vim.g.loaded_quickbuf then
 end
 vim.g.loaded_quickbuf = true
 
-require("quickbuf").setup()
+require("quickbuf").setup(nil, false)
