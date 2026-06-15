@@ -10,6 +10,7 @@ M.defaults = {
     alternate_key = "<Tab>",
     alternate_key_display = "",
     alternate_without_label = true,
+    label_before_name = true,
     picker = {
         move_up_key = "k",
         move_down_key = "j",

@@ -18,7 +18,7 @@ Early MVP.
 - Quick label picker for `buflisted` buffers (excludes current buffer)
 - Border title shows total selectable buffers (current buffer excluded)
 - Ranking: alternate buffer (`#`) first, then pinned, then MRU
-- Render filename first, with label right next to filename and parent path dimmed
+- Render label and filename side-by-side (label placement configurable), with parent path dimmed
 - Vim-style flags are shown after pin mark (e.g. `#a+`, `h+`)
 - Optional icons via `nvim-web-devicons`
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
@@ -143,6 +143,7 @@ require("quickbuf").setup({
     alternate_key = "<Tab>",
     alternate_key_display = "",
     alternate_without_label = true,
+    label_before_name = true,
     picker = {
         move_up_key = "k",
         move_down_key = "j",
@@ -180,6 +181,7 @@ require("quickbuf").setup({
 - `gg/G`, `V`, `dd/d/D`, `c/C`, `w/W`, `r/R`, and `s/v/t` are reserved from labels to avoid conflicts.
 - In `s/v/t` mode, `<Esc>` cancels mode first; press `<Esc>` again to close picker.
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
+- Set `label_before_name = false` if you prefer filename before label.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
 - `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua -> mini.pick.
 - Set `fuzzy_backend` to `"snacks"`, `"telescope"`, `"fzf"`, or `"mini"` to force one backend.

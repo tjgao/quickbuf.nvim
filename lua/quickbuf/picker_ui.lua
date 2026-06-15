@@ -83,15 +83,6 @@ local function format_line(item, label)
 
     add(" ")
 
-    local icon, icon_hl = icon_for_item(item)
-    if icon ~= "" then
-        add(icon, icon_hl)
-        add(" ")
-    end
-
-    add(item.filename, "QuickBufFilename")
-
-    add(" ")
     local label_text = label ~= "" and label or " "
     local label_hl = label ~= "" and "QuickBufLabel" or "QuickBufMuted"
     if item.alternate then
@@ -104,7 +95,25 @@ local function format_line(item, label)
         label_hl = "QuickBufAlternate"
     end
     local label_cell = pad_right(label_text, 2)
-    add(label_cell, label_hl)
+    local icon, icon_hl = icon_for_item(item)
+
+    if config.values.label_before_name then
+        add(label_cell, label_hl)
+        add(" ")
+        if icon ~= "" then
+            add(icon, icon_hl)
+            add(" ")
+        end
+        add(item.filename, "QuickBufFilename")
+    else
+        if icon ~= "" then
+            add(icon, icon_hl)
+            add(" ")
+        end
+        add(item.filename, "QuickBufFilename")
+        add(" ")
+        add(label_cell, label_hl)
+    end
 
     if item.dirname ~= "" then
         add(" ")
