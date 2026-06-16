@@ -6,6 +6,10 @@ Fast buffer switching inspired by flash-like label picking.
 
 Early MVP.
 
+## Requirements
+
+- Neovim >= 0.10.0
+
 ## Why QuickBuf
 
 - Keep a task-focused working set: pin the few buffers you touch repeatedly.
