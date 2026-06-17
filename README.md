@@ -28,6 +28,7 @@ Early MVP.
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
 - Press `/` in picker to open fuzzy buffers (`fuzzy_backend`: auto/Snacks/Telescope/fzf/mini/custom)
+- Optional per-project pinned persistence to disk
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `s/v/t + label` open in split/vsplit/tab, `<CR>` open current (`s/v/t` mode applies to `<CR>`/`<Tab>` too)
 - `?` opens an in-picker help popup with all actions
 - Pin toggle and next/previous pinned buffer cycling
@@ -155,6 +156,10 @@ require("quickbuf").setup({
         toggle_pin_key = "T",
     },
     show_icons = true,
+    persistence = {
+        enabled = false,
+        debounce_ms = 1000,
+    },
     highlights = {
         label = { fg = "#ff8800", bold = true },
         pinned = { link = "DiagnosticOk", bold = true },
@@ -188,6 +193,9 @@ require("quickbuf").setup({
 - With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
 - Set `label_before_name = false` if you prefer filename before label.
 - Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
+- Set `persistence.enabled = true` to persist pinned buffers per project.
+- Project scope is git root when available, otherwise current working directory.
+- Persistence files are stored under `stdpath("data") .. "/quickbuf/pins"`.
 - `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua -> mini.pick.
 - Set `fuzzy_backend` to `"snacks"`, `"telescope"`, `"fzf"`, or `"mini"` to force one backend.
 - Set `fuzzy_backend = "custom"` and provide `fuzzy_open = function(size) ... end` to integrate any picker.

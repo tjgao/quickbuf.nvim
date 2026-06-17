@@ -18,6 +18,10 @@ M.defaults = {
         toggle_pin_key = "T",
     },
     show_icons = true,
+    persistence = {
+        enabled = false,
+        debounce_ms = 1000,
+    },
     highlights = {
         label = { fg = "#ff8800", bold = true },
         pinned = { link = "DiagnosticOk", bold = true },
