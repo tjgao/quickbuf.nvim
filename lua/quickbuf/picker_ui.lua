@@ -12,7 +12,8 @@ local M = {
 }
 
 local function picker_winhighlight(footer_group)
-    return "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:"
+    return
+        "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:"
         .. footer_group
         .. ",CursorLine:QuickBufCursorLine"
 end
@@ -321,7 +322,7 @@ function M.open_help_popup(lines)
     vim.wo[M.help_win].signcolumn = "no"
     vim.wo[M.help_win].wrap = false
     vim.wo[M.help_win].winhighlight =
-        "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename"
+    "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename"
 
     vim.keymap.set("n", "q", function()
         if M.help_win and vim.api.nvim_win_is_valid(M.help_win) then
@@ -338,6 +339,9 @@ function M.open_help_popup(lines)
         M.help_win = nil
         M.help_buf = nil
     end, { buffer = M.help_buf, nowait = true, silent = true })
+
+    vim.keymap.set("n", "<C-o>", "<Nop>", { buffer = M.help_buf, nowait = true, silent = true })
+    vim.keymap.set("n", "<C-i>", "<Nop>", { buffer = M.help_buf, nowait = true, silent = true })
 end
 
 function M.open_picker(lines, all_highlights, meta)

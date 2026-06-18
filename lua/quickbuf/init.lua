@@ -134,6 +134,7 @@ function M.setup(opts, force_load)
 
     config.setup(opts)
     setup_highlights()
+    state.load_project_pins()
 
     if did_setup then
         return
@@ -153,7 +154,25 @@ function M.setup(opts, force_load)
     vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
         group = augroup,
         callback = function(args)
-            state.unpin(args.buf)
+            state.on_buf_deleted(args.buf)
+        end,
+    })
+    vim.api.nvim_create_autocmd("VimEnter", {
+        group = augroup,
+        callback = function()
+            state.load_project_pins()
+        end,
+    })
+    vim.api.nvim_create_autocmd("DirChanged", {
+        group = augroup,
+        callback = function()
+            state.load_project_pins()
+        end,
+    })
+    vim.api.nvim_create_autocmd("VimLeavePre", {
+        group = augroup,
+        callback = function()
+            state.on_vim_leave_pre()
         end,
     })
     did_setup = true
