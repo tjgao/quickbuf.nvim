@@ -156,6 +156,7 @@ require("quickbuf").setup({
         toggle_pin_key = "T",
     },
     show_icons = true,
+    pin_display = "P",
     persistence = {
         enabled = false,
         debounce_ms = 1000,

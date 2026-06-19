@@ -72,7 +72,8 @@ local function format_line(item, label)
         byte_col = byte_col + #text
     end
 
-    local pin_mark = item.pinned and " P " or "   "
+    local pin_display = " " .. (config.values.pin_display or "P") .. " "
+    local pin_mark = item.pinned and pin_display or string.rep(" ", str_width(pin_display))
     add(pin_mark, item.pinned and "QuickBufPinned" or "QuickBufMuted")
 
     local flags = item.flags or ""
