@@ -57,6 +57,7 @@ end
 
 function M.open(opts)
     local size = fuzzy_picker_size(opts)
+    local picker = config.values.picker or {}
 
     local function open_snacks(size_hint)
         local ok_snacks, snacks = pcall(require, "snacks")
@@ -172,14 +173,14 @@ function M.open(opts)
         return true
     end
 
-    local backend = config.values.fuzzy_backend
+    local backend = picker.fuzzy_backend
     if type(backend) ~= "string" or backend == "" then
         backend = "auto"
     else
         backend = string.lower(backend)
     end
     if backend == "custom" then
-        local custom = config.values.fuzzy_open
+        local custom = picker.fuzzy_open
         if type(custom) ~= "function" then
             vim.notify("quickbuf: fuzzy_backend is 'custom' but fuzzy_open is not a function", vim.log.levels.WARN)
             return

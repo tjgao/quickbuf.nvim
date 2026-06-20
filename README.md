@@ -27,7 +27,7 @@ Early MVP.
 - Optional icons via `nvim-web-devicons`
 - No scroll by design: top N buffers are shown, with `+X more` overflow hint
 - Press `<Tab>` in picker to jump to alternate buffer (`#`)
-- Press `/` in picker to open fuzzy buffers (`fuzzy_backend`: auto/Snacks/Telescope/fzf/mini/custom)
+- Press `/` in picker to open fuzzy buffers (`picker.fuzzy_backend`: auto/Snacks/Telescope/fzf/mini/custom)
 - Optional per-project pinned persistence to disk
 - Picker actions: `k/j` move, `gg/G` first/last, `V` linewise visual, `dd`/`d` delete safe, `D` delete force, `c/C` clear unpinned safe/force, `w/W` write current-or-selection/all, `r/R` reload modified current-or-selection/all, `s/v/t + label` open in split/vsplit/tab, `<CR>` open current (`s/v/t` mode applies to `<CR>`/`<Tab>` too)
 - `?` opens an in-picker help popup with all actions
@@ -63,7 +63,7 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 
 No setup call is required for default behavior.
 
-Optional: install `nvim-web-devicons` if you want file icons (`show_icons = true`).
+Optional: install `nvim-web-devicons` if you want file icons (`picker.show_icons = true`).
 
 ### `packer.nvim`
 
@@ -79,8 +79,8 @@ If you want custom options, call setup in your plugin config:
 
 ```lua
 require("quickbuf").setup({
-    fuzzy_backend = "telescope",
     picker = {
+        fuzzy_backend = "telescope",
         move_up_key = "<C-k>",
         move_down_key = "<C-j>",
     },
@@ -101,7 +101,9 @@ call plug#end()
 " Optional customization:
 lua << EOF
 require("quickbuf").setup({
-    fuzzy_backend = "snacks",
+    picker = {
+        fuzzy_backend = "snacks",
+    },
 })
 EOF
 ```
@@ -115,7 +117,9 @@ add({ source = "tjgao/quickbuf.nvim" })
 
 -- Optional customization:
 require("quickbuf").setup({
-    fuzzy_backend = "fzf",
+    picker = {
+        fuzzy_backend = "fzf",
+    },
 })
 ```
 
@@ -141,27 +145,27 @@ Defaults:
 
 ```lua
 require("quickbuf").setup({
-    include_special = false,
-    auto_jump_single = false,
-    isolate_keymaps = true,
-    fuzzy_key = "/",
-    fuzzy_backend = "auto",
-    fuzzy_open = nil,
-    alternate_key = "<Tab>",
-    alternate_key_display = "",
-    alternate_without_label = true,
-    label_before_name = true,
     picker = {
+        include_special = false,
+        auto_jump_single = false,
+        isolate_keymaps = true,
+        fuzzy_key = "/",
+        fuzzy_backend = "auto",
+        fuzzy_open = nil,
+        alternate_key = "<Tab>",
+        alternate_key_display = "",
+        alternate_without_label = true,
+        label_before_name = true,
         move_up_key = "k",
         move_down_key = "j",
         select_key = "<CR>",
         toggle_pin_key = "T",
+        show_icons = true,
+        pin_display = "P",
     },
-    show_icons = true,
-    pin_display = "P",
     persistence = {
         enabled = false,
-        debounce_ms = 1000,
+        debounce_ms = 5000,
     },
     highlights = {
         label = { fg = "#ff8800", bold = true },
@@ -190,23 +194,23 @@ require("quickbuf").setup({
 
 - Labels are always one-key and use an internal ergonomic charset.
 - Visible items are capped to that internal label count, with `+X more` overflow hint.
-- `isolate_keymaps = true` blocks unrelated normal-mode mappings inside picker.
+- `picker.isolate_keymaps = true` blocks unrelated normal-mode mappings inside picker.
 - `gg/G`, `V`, `dd/d/D`, `c/C`, `w/W`, `r/R`, and `s/v/t` are reserved from labels to avoid conflicts.
 - In `s/v/t` mode, `<Esc>` cancels mode first; press `<Esc>` again to close picker.
-- With `alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
-- Set `label_before_name = false` if you prefer filename before label.
-- Set `fuzzy_key = false` or `alternate_key = false` to disable those picker shortcuts.
+- With `picker.alternate_without_label = true`, the alternate entry has no label and is opened with `<Tab>`.
+- Set `picker.label_before_name = false` if you prefer filename before label.
+- Set `picker.fuzzy_key = false` or `picker.alternate_key = false` to disable those picker shortcuts.
 - Set `persistence.enabled = true` to persist pinned buffers per project.
 - Project scope is git root when available, otherwise current working directory.
 - Persistence files are stored under `stdpath("data") .. "/quickbuf/pins"`.
-- `fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua -> mini.pick.
-- Set `fuzzy_backend` to `"snacks"`, `"telescope"`, `"fzf"`, or `"mini"` to force one backend.
-- Set `fuzzy_backend = "custom"` and provide `fuzzy_open = function(size) ... end` to integrate any picker.
+- `picker.fuzzy_backend = "auto"` tries backends in order: Snacks -> Telescope -> fzf-lua -> mini.pick.
+- Set `picker.fuzzy_backend` to `"snacks"`, `"telescope"`, `"fzf"`, or `"mini"` to force one backend.
+- Set `picker.fuzzy_backend = "custom"` and provide `picker.fuzzy_open = function(size) ... end` to integrate any picker.
 - `picker.*` keys are conflict-safe: they are automatically reserved from label characters.
 - Override colors with `highlights = { ... }` in setup.
 - `window.width`, `window.height`, `window.min_width`, and `window.max_width` accept absolute numbers (`80`) or percentages (`0.6`).
 - `window.vertical_padding` adds blank rows above and below buffer entries.
-- Pin state is in-memory for now (session only).
+- Pin state is in-memory by default; enable `persistence.enabled` for per-project disk persistence.
 
 Example highlight override:
 
@@ -237,7 +241,9 @@ Example force mini.pick backend:
 
 ```lua
 require("quickbuf").setup({
-    fuzzy_backend = "mini",
+    picker = {
+        fuzzy_backend = "mini",
+    },
 })
 ```
 
@@ -245,17 +251,19 @@ Example custom fuzzy backend:
 
 ```lua
 require("quickbuf").setup({
-    fuzzy_backend = "custom",
-    fuzzy_open = function(size)
-        require("mini.pick").builtin.buffers({
-            window = {
-                config = {
-                    width = size.width_cols,
-                    height = size.height_rows,
+    picker = {
+        fuzzy_backend = "custom",
+        fuzzy_open = function(size)
+            require("mini.pick").builtin.buffers({
+                window = {
+                    config = {
+                        width = size.width_cols,
+                        height = size.height_rows,
+                    },
                 },
-            },
-        })
-    end,
+            })
+        end,
+    },
 })
 ```
 

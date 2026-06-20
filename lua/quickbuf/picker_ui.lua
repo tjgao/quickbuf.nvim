@@ -11,6 +11,10 @@ local M = {
     help_buf = nil,
 }
 
+local function picker_cfg()
+    return config.values.picker or {}
+end
+
 local function picker_winhighlight(footer_group)
     return
         "Normal:QuickBufFilename,NormalNC:QuickBufFilename,NormalFloat:QuickBufFilename,FloatBorder:QuickBufFilename,FloatTitle:QuickBufFilename,FloatFooter:"
@@ -31,7 +35,7 @@ local function pad_right(s, width)
 end
 
 local function icon_for_item(item)
-    if not config.values.show_icons then
+    if not picker_cfg().show_icons then
         return "", nil
     end
 
@@ -72,7 +76,7 @@ local function format_line(item, label)
         byte_col = byte_col + #text
     end
 
-    local pin_display = " " .. (config.values.pin_display or "P") .. " "
+    local pin_display = " " .. ((picker_cfg().pin_display) or "P") .. " "
     local pin_mark = item.pinned and pin_display or string.rep(" ", str_width(pin_display))
     add(pin_mark, item.pinned and "QuickBufPinned" or "QuickBufMuted")
 
@@ -88,7 +92,7 @@ local function format_line(item, label)
     local label_text = label ~= "" and label or " "
     local label_hl = label ~= "" and "QuickBufLabel" or "QuickBufMuted"
     if item.alternate then
-        local alt_display = config.values.alternate_key_display
+        local alt_display = picker_cfg().alternate_key_display
         if type(alt_display) == "string" and alt_display ~= "" then
             label_text = alt_display
         else
@@ -99,7 +103,7 @@ local function format_line(item, label)
     local label_cell = pad_right(label_text, 2)
     local icon, icon_hl = icon_for_item(item)
 
-    if config.values.label_before_name then
+    if picker_cfg().label_before_name then
         add(label_cell, label_hl)
         add(" ")
         if icon ~= "" then

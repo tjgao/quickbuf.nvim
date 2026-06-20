@@ -27,6 +27,10 @@ local function is_single_key(key)
     return type(key) == "string" and #key == 1
 end
 
+local function picker_cfg()
+    return config.values.picker or {}
+end
+
 local function effective_charset()
     local reserved = {
         q = true,
@@ -46,25 +50,26 @@ local function effective_charset()
         [OPEN_TAB_PREFIX_KEY] = true,
     }
 
-    if is_single_key(config.values.fuzzy_key) then
-        reserved[config.values.fuzzy_key] = true
+    local picker = picker_cfg()
+
+    if is_single_key(picker.fuzzy_key) then
+        reserved[picker.fuzzy_key] = true
     end
-    if is_single_key(config.values.alternate_key) then
-        reserved[config.values.alternate_key] = true
+    if is_single_key(picker.alternate_key) then
+        reserved[picker.alternate_key] = true
     end
 
-    local picker_keys = config.values.picker or {}
-    if is_single_key(picker_keys.move_up_key) then
-        reserved[picker_keys.move_up_key] = true
+    if is_single_key(picker.move_up_key) then
+        reserved[picker.move_up_key] = true
     end
-    if is_single_key(picker_keys.move_down_key) then
-        reserved[picker_keys.move_down_key] = true
+    if is_single_key(picker.move_down_key) then
+        reserved[picker.move_down_key] = true
     end
-    if is_single_key(picker_keys.select_key) then
-        reserved[picker_keys.select_key] = true
+    if is_single_key(picker.select_key) then
+        reserved[picker.select_key] = true
     end
-    if is_single_key(picker_keys.toggle_pin_key) then
-        reserved[picker_keys.toggle_pin_key] = true
+    if is_single_key(picker.toggle_pin_key) then
+        reserved[picker.toggle_pin_key] = true
     end
     local out = {}
     for _, ch in ipairs(labels.default_charset()) do
@@ -98,7 +103,8 @@ local function max_visible_items(total_items, label_limit)
 end
 
 local function fuzzy_height_fallback()
-    local items = rank.candidates({ include_special = config.values.include_special })
+    local picker = picker_cfg()
+    local items = rank.candidates({ include_special = picker.include_special })
     local charset = effective_charset()
     local shown_count = max_visible_items(#items, #charset)
     local hidden_count = math.max(0, #items - shown_count)
@@ -115,13 +121,13 @@ end
 
 local function apply_keymaps(items, labels_for_items, ctx)
     local function help_lines()
-        local picker_keys = config.values.picker or {}
+        local picker_keys = picker_cfg()
         local up = picker_keys.move_up_key or "k"
         local down = picker_keys.move_down_key or "j"
         local select = picker_keys.select_key or "<CR>"
         local toggle_pin = picker_keys.toggle_pin_key or "T"
-        local fuzzy_key = config.values.fuzzy_key or "/"
-        local alternate = config.values.alternate_key or "<Tab>"
+        local fuzzy_key = picker_keys.fuzzy_key or "/"
+        local alternate = picker_keys.alternate_key or "<Tab>"
 
         local lines = {
             "[Navigation]",
@@ -434,7 +440,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
     end
 
     local function swallow_all_normal_keys()
-        if not config.values.isolate_keymaps then
+        if not picker_cfg().isolate_keymaps then
             return
         end
 
@@ -471,7 +477,7 @@ local function apply_keymaps(items, labels_for_items, ctx)
 
     swallow_all_normal_keys()
 
-    local picker_keys = config.values.picker or {}
+    local picker_keys = picker_cfg()
     local map_buf = ui.get_buf()
     local focus_refresh_armed = false
     local pending_open_mode = nil
@@ -584,8 +590,8 @@ local function apply_keymaps(items, labels_for_items, ctx)
         set_pending_open_mode("tab")
     end, { buffer = map_buf, nowait = true, silent = true })
 
-    if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
-        vim.keymap.set("n", config.values.fuzzy_key, function()
+    if picker_keys.fuzzy_key and picker_keys.fuzzy_key ~= "" then
+        vim.keymap.set("n", picker_keys.fuzzy_key, function()
             local size_hint = {}
             local win = ui.get_win()
             if win and vim.api.nvim_win_is_valid(win) then
@@ -603,8 +609,8 @@ local function apply_keymaps(items, labels_for_items, ctx)
         end, { buffer = map_buf, nowait = true, silent = true })
     end
 
-    if config.values.alternate_key and config.values.alternate_key ~= "" then
-        vim.keymap.set("n", config.values.alternate_key, function()
+    if picker_keys.alternate_key and picker_keys.alternate_key ~= "" then
+        vim.keymap.set("n", picker_keys.alternate_key, function()
             local alternate = ctx and ctx.alternate_bufnr or -1
             if
                 alternate > 0
@@ -694,13 +700,13 @@ function M.open(opts)
     opts.alternate_bufnr = alternate_bufnr
 
     local all_items = rank.candidates({
-        include_special = config.values.include_special,
+        include_special = picker_cfg().include_special,
         source_bufnr = source_bufnr,
         alternate_bufnr = alternate_bufnr,
     })
     local items = all_items
 
-    if config.values.auto_jump_single and #items == 1 then
+    if picker_cfg().auto_jump_single and #items == 1 then
         vim.api.nvim_set_current_buf(items[1].bufnr)
         return
     end
@@ -712,15 +718,17 @@ function M.open(opts)
         shown[#shown + 1] = items[i]
     end
 
+    local picker_keys = picker_cfg()
+
     local labels_needed = 0
     local labels_for_items = {}
     for i, item in ipairs(shown) do
         if
             not (
-                config.values.alternate_without_label
+                picker_keys.alternate_without_label
                 and item.alternate
-                and config.values.alternate_key
-                and config.values.alternate_key ~= ""
+                and picker_keys.alternate_key
+                and picker_keys.alternate_key ~= ""
             )
         then
             labels_needed = labels_needed + 1
@@ -752,8 +760,8 @@ function M.open(opts)
         "q [quit]",
         "s/v/t [mode]",
     }
-    if config.values.fuzzy_key and config.values.fuzzy_key ~= "" then
-        footer_parts[#footer_parts + 1] = string.format("%s [fuzzy]", config.values.fuzzy_key)
+    if picker_keys.fuzzy_key and picker_keys.fuzzy_key ~= "" then
+        footer_parts[#footer_parts + 1] = string.format("%s [fuzzy]", picker_keys.fuzzy_key)
     end
 
     local footer = " " .. table.concat(footer_parts, "  ") .. " "
