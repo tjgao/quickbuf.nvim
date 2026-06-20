@@ -63,6 +63,8 @@ https://github.com/user-attachments/assets/eaa5bd33-a3af-4b49-8945-12d0c3db2dba
 
 No setup call is required for default behavior.
 
+Optional: install `nvim-web-devicons` if you want file icons (`show_icons = true`).
+
 ### `packer.nvim`
 
 ```lua
