@@ -267,6 +267,17 @@ require("quickbuf").setup({
 })
 ```
 
+Example enable persistent pins:
+
+```lua
+require("quickbuf").setup({
+    persistence = {
+        enabled = true,
+        debounce_ms = 5000,
+    },
+})
+```
+
 ## License
 
 MIT. See `LICENSE`.
